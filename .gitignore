@@ -1,0 +1,19 @@
+# Binaries
+bbctl
+*.exe
+*.out
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# Build output
+bin/
+dist/
+
+# Dependency cache
+vendor/
+
+# Env files
+.env
