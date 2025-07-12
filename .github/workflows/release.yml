@@ -33,7 +33,7 @@ jobs:
         if [[ "${{ matrix.goos }}" == "windows" ]]; then
           BINARY=${BINARY}.exe
         fi
-        go build -o "$BINARY" -v ./cmd/bbctl
+        go build -o "$BINARY" -v .
       env:
         GOOS: ${{ matrix.goos }}
         GOARCH: ${{ matrix.goarch }}
