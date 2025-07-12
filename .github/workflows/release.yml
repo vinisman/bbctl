@@ -32,7 +32,7 @@ jobs:
           BIN=bbctl-${{ matrix.goos }}-${{ matrix.goarch }}
           [[ "${{ matrix.goos }}" == "windows" ]] && BIN=${BIN}.exe
           echo "BIN=$BIN" >> "$GITHUB_ENV"
-          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -ldflags="-s -w" -o $BIN ./cmd/bbctl
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -ldflags="-s -w" -o $BIN
           ls -l $BIN
 
       - name: Package artifact
