@@ -33,7 +33,8 @@ jobs:
         if [[ "${{ matrix.goos }}" == "windows" ]]; then
           BINARY=${BINARY}.exe
         fi
-        go build -o "$BINARY" -v .
+        go build -o "$BINARY"
+        ls -l
       env:
         GOOS: ${{ matrix.goos }}
         GOARCH: ${{ matrix.goarch }}
@@ -41,7 +42,8 @@ jobs:
     - name: Package artifact
       run: |
         mkdir -p release
-        tar czf release/${BINARY}.tar.gz "$BINARY" || zip -j re\(lease/${BINARY}.zip "$BINARY"
+        ls -l
+        tar czf release/${BINARY}.tar.gz "$BINARY"
 
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v1
