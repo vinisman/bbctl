@@ -70,3 +70,10 @@ repositories:
 
 $ bbctl apply repos -p PROJECT1 -i repos_to_update.yaml
 ```
+
+
+## 💰 Support the project
+
+[![Donate on Boosty](https://img.shields.io/badge/Boosty-Donate-orange?logo=boosty&logoColor=white)](https://boosty.to/vinisman/donate)
+
+[![Donate TON via NowPayments](https://img.shields.io/badge/Donate‑TON‑NowPayments-blue?logo=cryptocurrency&logoColor=white)](https://nowpayments.io/payment/?iid=5065138397)
