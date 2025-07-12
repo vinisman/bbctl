@@ -1,0 +1,51 @@
+# .github/workflows/release.yml
+name: Build and Release bbctl
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build and publish
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        goos: [linux, darwin, windows]
+        goarch: [amd64, arm64]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version-file: go.mod
+
+    - name: Build binary
+      run: |
+        BINARY=bbctl-${{ matrix.goos }}-${{ matrix.goarch }}
+        if [[ "${{ matrix.goos }}" == "windows" ]]; then
+          BINARY=${BINARY}.exe
+        fi
+        go build -o "$BINARY" -v ./cmd/bbctl
+      env:
+        GOOS: ${{ matrix.goos }}
+        GOARCH: ${{ matrix.goarch }}
+
+    - name: Package artifact
+      run: |
+        mkdir -p release
+        tar czf release/${BINARY}.tar.gz "$BINARY" || zip -j re\(lease/${BINARY}.zip "$BINARY"
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: release/*
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

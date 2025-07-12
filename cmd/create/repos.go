@@ -12,7 +12,7 @@ import (
 
 var ReposCmd = &cobra.Command{
 	Use:   "repos",
-	Short: "Create repos if not exist (skip if exist)",
+	Short: "Bulk create repos if not exist (skip if exist)",
 	Run: func(cmd *cobra.Command, args []string) {
 		cfg := utils.LoadConfig()
 

@@ -11,7 +11,7 @@ import (
 
 var ReposCmd = &cobra.Command{
 	Use:   "repos",
-	Short: "Create or update repos from YAML",
+	Short: "Bulk create or update repos from YAML",
 	Run: func(cmd *cobra.Command, args []string) {
 		cfg := utils.LoadConfig()
 		repos := utils.ReadRepositoryYaml(utils.InputFile)

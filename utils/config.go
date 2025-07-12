@@ -4,7 +4,6 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/go-playground/validator/v10"
 	"github.com/joho/godotenv"
 	"github.com/vinisman/bbctl/models"
 
@@ -77,27 +76,5 @@ func ReadRepositoryYaml(file string) []models.RepoEntity {
 	defer f.Close()
 	var out models.RepoListInput
 	yaml.NewDecoder(f).Decode(&out)
-	return out.Repositories
-}
-
-func ReadRepositoryWithBuildsYaml(file string) []models.RepoWithBuildKeys {
-	data, err := os.ReadFile(file)
-	if err != nil {
-		slog.Error("Failed to open file", slog.String("file", file), slog.Any("err", err))
-		os.Exit(1)
-	}
-
-	var out models.RepoBuildFile
-	if err := yaml.Unmarshal(data, &out); err != nil {
-		slog.Error("Failed to decode YAML", slog.String("file", file), slog.Any("err", err))
-		os.Exit(1)
-	}
-
-	v := validator.New()
-	if err := v.Struct(out); err != nil {
-		slog.Error("Validation error in YAML", slog.String("file", file), slog.Any("err", err))
-		os.Exit(1)
-	}
-
 	return out.Repositories
 }

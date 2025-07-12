@@ -32,7 +32,6 @@ func init() {
 	// Create
 	createCmd := &cobra.Command{Use: "create", Short: "Create resources"}
 	createCmd.AddCommand(create.ReposCmd)
-	createCmd.AddCommand(create.BuildsCmd)
 	RootCmd.AddCommand(createCmd)
 
 	// Apply
@@ -43,7 +42,6 @@ func init() {
 	// Delete
 	deleteCmd := &cobra.Command{Use: "delete", Short: "Delete resources"}
 	deleteCmd.AddCommand(delete.ReposCmd)
-	deleteCmd.AddCommand(delete.BuildsCmd)
 	RootCmd.AddCommand(deleteCmd)
 
 	// Get

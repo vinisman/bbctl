@@ -28,7 +28,8 @@ var ReposCmd = &cobra.Command{
 		svc := api.NewRepoService(cfg, projectKey)
 		summaries, err := svc.List()
 		if err != nil {
-			fmt.Printf("❌ failed to list repos: %v\n", err)
+			slog.Error("failed to list repos")
+			slog.Debug("details", slog.Any("err", err))
 			return
 		}
 
@@ -126,7 +127,6 @@ func printRepoFields(repos []models.RepoEntity, fieldsCSV string, manifests map[
 		tmpl = template.Must(template.New("manifest").Parse(utils.TemplateStr))
 	}
 
-	// Печатаем заголовки: базовые + шаблонное имя
 	header := append([]string{}, fields...)
 	if templateField != "" {
 		header = append(header, templateField)
@@ -137,7 +137,6 @@ func printRepoFields(repos []models.RepoEntity, fieldsCSV string, manifests map[
 		values := []string{}
 		manifest := manifests[repo.Slug]
 
-		// Заполняем базовые поля
 		for _, f := range fields {
 			switch strings.TrimSpace(f) {
 			case "name":
@@ -157,7 +156,6 @@ func printRepoFields(repos []models.RepoEntity, fieldsCSV string, manifests map[
 			case "defaultBranch":
 				values = append(values, repo.DefaultBranch)
 			default:
-				// Поле из manifest, если есть (без шаблона)
 				if manifest != nil {
 					if val, ok := manifest[f]; ok {
 						values = append(values, fmt.Sprintf("%v", val))
@@ -168,7 +166,6 @@ func printRepoFields(repos []models.RepoEntity, fieldsCSV string, manifests map[
 			}
 		}
 
-		// Добавляем шаблонное поле (если есть)
 		if tmpl != nil {
 			var sb strings.Builder
 			_ = tmpl.Execute(&sb, manifest)
@@ -203,7 +200,6 @@ func printRepoYaml(repos []models.RepoEntity, fieldsCSV string, manifests map[st
 		entry := make(outRepo)
 		entry["name"] = r.Name
 
-		// Присваиваем базовые поля
 		for _, f := range fields {
 			f = strings.TrimSpace(f)
 			switch f {
@@ -232,7 +228,6 @@ func printRepoYaml(repos []models.RepoEntity, fieldsCSV string, manifests map[st
 			}
 		}
 
-		// Добавляем шаблонное поле
 		if tmpl != nil && templateField != "" {
 			var sb strings.Builder
 			_ = tmpl.Execute(&sb, manifests[r.Slug])
