@@ -20,34 +20,28 @@ jobs:
         goarch: [amd64, arm64]
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version-file: go.mod
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version-file: go.mod
 
-    - name: Build binary
-      run: |
-        BINARY=bbctl-${{ matrix.goos }}-${{ matrix.goarch }}
-        if [[ "${{ matrix.goos }}" == "windows" ]]; then
-          BINARY=${BINARY}.exe
-        fi
-        go build -o "$BINARY"
-        ls -l
-      env:
-        GOOS: ${{ matrix.goos }}
-        GOARCH: ${{ matrix.goarch }}
+      - name: Build binary
+        id: build
+        run: |
+          BIN=bbctl-${{ matrix.goos }}-${{ matrix.goarch }}
+          [[ "${{ matrix.goos }}" == "windows" ]] && BIN=${BIN}.exe
+          echo "BIN=$BIN" >> "$GITHUB_ENV"
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -ldflags="-s -w" -o "$BIN"
+          ls -l "$BIN"
 
-    - name: Package artifact
-      run: |
-        mkdir -p release
-        ls -l
-        tar czf release/${BINARY}.tar.gz "$BINARY"
-
-    - name: Create GitHub Release
-      uses: softprops/action-gh-release@v1
-      with:
-        files: release/*
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Package artifact
+        env:
+          BIN: ${{ env.BIN }}
+        run: |
+          echo "Packaging: $BIN"
+          ls -l "$BIN" || exit 1
+          mkdir -p release
+          tar -czf release/${BIN}.tar.gz "$BIN"
+          ls -l release/
