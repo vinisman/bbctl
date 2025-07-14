@@ -110,6 +110,8 @@ func (s *RepoService) CreateOrUpdate(repo models.RepoEntity) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		log.Debug("response", slog.Any("httpCode", resp.StatusCode), slog.String("response", string(bodyBytes)))
 		return s.Update(repo)
 	}
 	s.Create(repo)
@@ -163,6 +165,8 @@ func (s *RepoService) List() ([]models.RepoEntity, error) {
 		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
+			bodyBytes, _ := io.ReadAll(resp.Body)
+			slog.Debug("response", slog.Any("httpCode", resp.StatusCode), slog.String("response", string(bodyBytes)))
 			return nil, fmt.Errorf("failed listing repos: status %d", resp.StatusCode)
 		}
 
@@ -198,9 +202,12 @@ func (s *RepoService) Get(repoSlug string) (*models.RepoEntity, error) {
 		log.Debug("An error occurred", slog.String("error", err.Error()))
 		return nil, err
 	}
+
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		log.Debug("response", slog.Any("httpCode", resp.StatusCode), slog.String("response", string(bodyBytes)))
 		return nil, fmt.Errorf("failed to get repo: HTTP %d", resp.StatusCode)
 	}
 
@@ -246,8 +253,8 @@ func (s *RepoService) GetDefaultBranch(repoSlug string) *string {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		log.Error("A connection error occurred")
-		log.Info("failed to get default branch")
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		log.Debug("response", slog.Any("httpCode", resp.StatusCode), slog.String("response", string(bodyBytes)))
 		return nil
 	}
 
