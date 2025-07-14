@@ -22,12 +22,17 @@ BITBUCKET_TOKEN=<token>
 ## Examples
 1) List repos
 ```
-$ bbctl create repos -p PROJECT1
+$ bbctl get repos -p PROJECT1
 name
 my-repo-4
 my-repo-1
 my-repo-2
 my-repo-3
+
+$ get repo my-repo-1 -p PROJECT1 --manifest-file manifest.json --template '{{.type}}'
+name            type
+my-repo-1       application
+
 ```
 2) Create repos
 ```

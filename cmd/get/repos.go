@@ -268,7 +268,7 @@ func tryLoadManifest(cfg utils.Config, projectKey, repoSlug, manifestFile string
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil || resp.StatusCode != 200 {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		log.Error("failed to create", slog.Any("httpCode", resp.StatusCode), slog.String("response", string(bodyBytes)))
+		log.Error("failed to get manifest", slog.Any("httpCode", resp.StatusCode), slog.String("response", string(bodyBytes)))
 		return nil
 	}
 	defer resp.Body.Close()

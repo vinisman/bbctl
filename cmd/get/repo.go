@@ -23,7 +23,7 @@ var RepoCmd = &cobra.Command{
 		svc := api.NewRepoService(cfg, pk)
 		rs, err := svc.Get(repoSlug)
 		if err != nil {
-			slog.Error("Failed to get repo")
+			slog.Error("failed to get repo")
 			return
 		}
 
