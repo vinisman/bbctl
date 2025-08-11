@@ -1,3 +1,10 @@
+.env
+.DS_Store
+repos copy.txt
+out
+go.work.*
+.idea
+
 # Binaries
 bbctl
 *.exe
@@ -14,6 +21,3 @@ dist/
 
 # Dependency cache
 vendor/
-
-# Env files
-.env

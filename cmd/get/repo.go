@@ -1,75 +1,71 @@
-// cmd/get/repo.go
 package get
 
 import (
-	"log/slog"
-	"strings"
+	"context"
+	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/vinisman/bbctl/api"
-	"github.com/vinisman/bbctl/models"
-	"github.com/vinisman/bbctl/utils"
+	"github.com/vinisman/bbctl/internal"
+	"github.com/vinisman/bbctl/utils" // чтобы получить глобальную cfg
 )
 
-var RepoCmd = &cobra.Command{
-	Use:   "repo <slug>",
-	Short: "Get detailed info for a single repository",
+var getRepoCmd = &cobra.Command{
+	Use:   "repo [slug]",
+	Short: "Get information about a specific repository by slug",
 	Args:  cobra.ExactArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
-		cfg := utils.LoadConfig()
-		pk := utils.ProjectKey
-		repoSlug := args[0]
-		includeBranch := strings.Contains(utils.FieldsToShow, "defaultBranch")
-		svc := api.NewRepoService(cfg, pk)
-		rs, err := svc.Get(repoSlug)
+	Example: `
+  bbctl get repo my-repo -p PROJECT
+	`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+
+		if utils.ProjectKey == "" {
+			return fmt.Errorf("parameter BITBUCKET_PROJECT_KEY or --project must be set")
+		}
+
+		slug := args[0]
+		if slug == "" {
+			return fmt.Errorf("repository slug must be specified")
+		}
+
+		client := internal.NewClient(utils.Cfg.BitbucketURL, utils.Cfg.BitbucketToken, utils.Logger)
+
+		ctx := context.Background()
+		repo, httpResp, err := client.ProjectAPI.GetRepository(ctx, utils.Cfg.ProjectKey, slug).Execute()
 		if err != nil {
-			slog.Error("failed to get repo")
-			return
+			cmd.SilenceUsage = true
+			return fmt.Errorf("failed to get repository: %w", err)
 		}
 
-		manifest := map[string]interface{}{}
-		if utils.ManifestFile != "" {
-			manifest = tryLoadManifest(cfg, pk, repoSlug, utils.ManifestFile)
+		if err := internal.CheckAuthByHeader(httpResp); err != nil {
+			utils.Logger.Error(err.Error())
+			return err
+		}
+		repoSlice := utils.SingleRepoSlice(repo)
+
+		cols := utils.ParseColumns(Columns)
+		needDefaultBranch := utils.Contains(cols, "DefaultBranch")
+
+		if needDefaultBranch {
+			internal.FetchDefaultBranches(client, repoSlice)
 		}
 
-		repos := []models.RepoEntity{{
-			Name:          rs.Name,
-			Slug:          rs.Slug,
-			Description:   rs.Description,
-			State:         rs.State,
-			Public:        rs.Public,
-			Forkable:      rs.Forkable,
-			Archived:      rs.Archived,
-			DefaultBranch: rs.DefaultBranch,
-		}}
-
-		if includeBranch {
-			repos[0].DefaultBranch = *svc.GetDefaultBranch(rs.Slug)
+		manifestFieldsList := utils.ParseColumns(ManifestFields)
+		needManifest := ManifestFile != "" && len(manifestFieldsList) > 0
+		var manifestDataMap map[string]map[string]string
+		if needManifest {
+			manifestDataMap = internal.FetchManifests(client, repoSlice, ManifestFile, manifestFieldsList)
 		}
 
-		outMan := map[string]map[string]interface{}{rs.Slug: manifest}
-
-		if utils.OutputFile != "" {
-			printRepoYaml(repos, utils.FieldsToShow, outMan)
-		} else {
-			printRepoFields(repos, utils.FieldsToShow, outMan)
+		if ManifestExist && needManifest {
+			filtered := repoSlice[:0]
+			for _, r := range repoSlice {
+				if _, ok := manifestDataMap[utils.DerefString(r.Slug)]; ok {
+					filtered = append(filtered, r)
+				}
+			}
+			repoSlice = filtered
 		}
+		utils.PrintRepos(repoSlice, Columns, manifestFieldsList, manifestDataMap, OutputFormat)
+		return nil
 	},
-}
-
-func init() {
-	RepoCmd.Flags().StringVar(&utils.FilterExpr, "filter", "", "Filter by manifest fields (e.g. 'type=library'). Works with manifest.json fields")
-	RepoCmd.Flags().StringVar(&utils.ManifestFile, "manifest-file", "", "Manifest JSON filename in the root of repository (e.g. manifest.json)")
-	RepoCmd.Flags().StringVar(&utils.TemplateStr, "template", "", "Go template using manifest fields, e.g. '{{ .type }}'")
-	RepoCmd.Flags().StringVarP(&utils.OutputFile, "output", "o", "", "Output YAML file")
-	RepoCmd.Flags().StringVarP(&utils.FieldsToShow, "fields", "f", "name", `Comma-separated fields to show
-	Available fields:
-		slug
-		state
-		public
-		forkable
-		archived
-		description
-		defaultBranch
-	`)
 }

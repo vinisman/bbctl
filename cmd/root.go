@@ -1,6 +1,9 @@
 package cmd
 
 import (
+	"log/slog"
+	"os"
+
 	"github.com/spf13/cobra"
 	"github.com/vinisman/bbctl/cmd/apply"
 	"github.com/vinisman/bbctl/cmd/create"
@@ -10,43 +13,38 @@ import (
 )
 
 var RootCmd = &cobra.Command{
-	Use:               "bbctl",
-	Short:             "bbctl — CLI tool for bulk management of repositories on Bitbucket Server/Data Center",
-	CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
+	Use:   "bbctl",
+	Short: "CLI tool for Bitbucket repositories management",
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		var err error
+		utils.Cfg, err = utils.LoadConfig()
+		if err != nil {
+			return err
+		}
+
+		level := slog.LevelInfo
+		if utils.Debug {
+			level = slog.LevelDebug
+		}
+		utils.Logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level}))
+		return nil
+	},
 }
 
-var debug bool
+func Execute() {
+	if err := RootCmd.Execute(); err != nil {
+		os.Exit(1)
+	}
+}
 
 func init() {
-	// Global flags
-	RootCmd.PersistentFlags().StringVar(&utils.GlobalURL, "url", "", "Bitbucket base URL (can use BITBUCKET_URL)")
-	RootCmd.PersistentFlags().StringVar(&utils.GlobalToken, "token", "", "Bitbucket token (can use BITBUCKET_TOKEN)")
-	RootCmd.PersistentFlags().StringVar(&utils.EnvFile, "env", "", "Path to .env file")
-	RootCmd.PersistentFlags().StringVarP(&utils.ProjectKey, "project", "p", "", "Bitbucket project key (global)")
-	RootCmd.PersistentFlags().BoolVarP(&debug, "debug", "d", false, "Enable debug logging")
-	RootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
-		utils.InitLogger(debug)
-	}
-	RootCmd.MarkPersistentFlagRequired("project")
+	RootCmd.PersistentFlags().BoolVar(&utils.Debug, "debug", false, "enable debug logging")
+	RootCmd.PersistentFlags().StringVar(&utils.GlobalURL, "base-url", "", "Bitbucket base URL (or env BITBUCKET_BASE_URL)")
+	RootCmd.PersistentFlags().StringVar(&utils.GlobalToken, "token", "", "Bitbucket token (or env BITBUCKET_TOKEN)")
+	RootCmd.PersistentFlags().IntVar(&utils.PageSize, "page-size", 50, "Page size for repository listing")
 
-	// Create
-	createCmd := &cobra.Command{Use: "create", Short: "Create resources"}
-	createCmd.AddCommand(create.ReposCmd)
-	RootCmd.AddCommand(createCmd)
-
-	// Apply
-	applyCmd := &cobra.Command{Use: "apply", Short: "Create or update resources"}
-	applyCmd.AddCommand(apply.ReposCmd)
-	RootCmd.AddCommand(applyCmd)
-
-	// Delete
-	deleteCmd := &cobra.Command{Use: "delete", Short: "Delete resources"}
-	deleteCmd.AddCommand(delete.ReposCmd)
-	RootCmd.AddCommand(deleteCmd)
-
-	// Get
-	getCmd := &cobra.Command{Use: "get", Short: "Get resources"}
-	getCmd.AddCommand(get.ReposCmd)
-	getCmd.AddCommand(get.RepoCmd)
-	RootCmd.AddCommand(getCmd)
+	RootCmd.AddCommand(get.GetCmd)
+	RootCmd.AddCommand(create.CreateCmd)
+	RootCmd.AddCommand(apply.ApplyCmd)
+	RootCmd.AddCommand(delete.DeleteCmd)
 }
