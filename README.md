@@ -1,12 +1,12 @@
 # bbctl
 
 **bbctl** is a CLI tool for managing repositories and automation in **Bitbucket Server / Data Center** environments.  
-It provides streamlined support for repository creation, manifest management
+It provides streamlined support for repository creation, deletion, and updating 
 
 ## ✨ Features
 
-- Management multiple repositories from YAML config
-- All commands are run in the project context
+- Management multiple repositories from multiple projects
+- Getting additional information about repository using manifest file from the root of the repository  
 - Parallel processing for high-performance bulk operations
 - YAML input/output for full GitOps compatibility
 - Easy configuration via `.env` file
@@ -14,7 +14,7 @@ It provides streamlined support for repository creation, manifest management
 ## Configuration
 Add .env properties file like below or provide command line keys. For details see --help
 ```
-BITBUCKET_URL=https://bitbucket-server.local
+BITBUCKET_BASE_URL=https://bitbucket-server.local
 BITBUCKET_TOKEN=<token>
 ```
 
