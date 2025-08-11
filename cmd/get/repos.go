@@ -83,7 +83,7 @@ var getReposCmd = &cobra.Command{
 			allRepos = filtered
 		}
 
-		utils.PrintRepos(allRepos, Columns, manifestFieldsList, manifestDataMap, OutputFormat)
+		internal.PrintRepos(allRepos, Columns, manifestFieldsList, manifestDataMap, OutputFormat)
 
 		utils.Logger.Debug("Listed repositories", "count", len(allRepos))
 		return nil

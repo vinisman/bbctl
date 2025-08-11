@@ -65,7 +65,7 @@ var getRepoCmd = &cobra.Command{
 			}
 			repoSlice = filtered
 		}
-		utils.PrintRepos(repoSlice, Columns, manifestFieldsList, manifestDataMap, OutputFormat)
+		internal.PrintRepos(repoSlice, Columns, manifestFieldsList, manifestDataMap, OutputFormat)
 		return nil
 	},
 }
