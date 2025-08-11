@@ -18,4 +18,6 @@ Available subcommands:
 func init() {
 	CreateCmd.AddCommand(createRepoCmd)
 	CreateCmd.AddCommand(createReposCmd)
+	CreateCmd.AddCommand(createRepoWebhookCmd)
+	CreateCmd.AddCommand(createRepoWebhooksCmd)
 }

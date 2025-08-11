@@ -41,4 +41,5 @@ Available columns:
 
 	GetCmd.AddCommand(getReposCmd)
 	GetCmd.AddCommand(getRepoCmd)
+	GetCmd.AddCommand(getRepoWebhooksCmd)
 }

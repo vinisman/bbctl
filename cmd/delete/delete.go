@@ -18,4 +18,6 @@ Available subcommands:
 func init() {
 	DeleteCmd.AddCommand(deleteRepoCmd)
 	DeleteCmd.AddCommand(deleteReposCmd)
+	DeleteCmd.AddCommand(deleteRepoWebhookCmd)
+	DeleteCmd.AddCommand(deleteRepoWebhooksCmd)
 }
