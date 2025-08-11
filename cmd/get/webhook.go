@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
-	"text/tabwriter"
 
 	"github.com/spf13/cobra"
 	"github.com/vinisman/bbctl/internal"
@@ -18,7 +16,7 @@ var (
 )
 
 var getRepoWebhooksCmd = &cobra.Command{
-	Use:   "repo-webhooks",
+	Use:   "repo-webhook",
 	Short: "List all webhooks for a specific repository",
 	Long: `List all webhooks for a specified Bitbucket repository.
 
@@ -27,7 +25,7 @@ Flags:
   --slug       Repository slug (required)
 
 Example:
-  bbctl get repo-webhooks --project PRJ --slug my-repo
+  bbctl get repo-webhook --project PRJ --slug my-repo
 `,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if utils.ProjectKey == "" {
@@ -69,20 +67,21 @@ Example:
 			return err
 		}
 
-		w := tabwriter.NewWriter(os.Stdout, 5, 2, 2, ' ', 0)
-		fmt.Fprintf(w, "ID\tNAME\tURL\tEVENTS\tACTIVE\tSSL Verification\tREPO\n")
+		webhooks := []internal.WebhookInfo{}
 		for _, wh := range body.Values {
-			fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%t\t%t\t%s\n",
-				wh.Id,
-				wh.Name,
-				wh.Url,
-				joinEvents(wh.Events),
-				wh.Active,
-				wh.SslVerificationRequired,
-				repoWebhookSlug,
-			)
+			webhooks = append(webhooks, internal.WebhookInfo{
+				Project:                 utils.ProjectKey,
+				Slug:                    repoWebhookSlug,
+				Name:                    wh.Name,
+				URL:                     wh.Url,
+				Events:                  wh.Events,
+				Active:                  wh.Active,
+				SslVerificationRequired: wh.SslVerificationRequired,
+				// Username, Password
+			})
 		}
-		w.Flush()
+
+		internal.PrintWebhooks(webhooks, OutputFormat) // format может быть "table", "yaml", "json"
 
 		utils.Logger.Debug("Listed repository webhooks", "repo", repoWebhookSlug, "count", len(body.Values))
 		return nil

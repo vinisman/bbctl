@@ -5,11 +5,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
+	"os"
+	"strings"
 	"sync"
+	"text/tabwriter"
 
 	"github.com/vinisman/bbctl/utils"
 	"github.com/vinisman/bitbucket-sdk-go/openapi"
+	"gopkg.in/yaml.v2"
 )
 
 func FetchDefaultBranches(client *openapi.APIClient, repos []openapi.RestRepository) {
@@ -52,6 +57,117 @@ func FetchDefaultBranches(client *openapi.APIClient, repos []openapi.RestReposit
 
 	close(jobs)
 	wg.Wait()
+}
+
+func PrintRepos(repos []openapi.RestRepository, extraCols string, manifestFields []string, manifestData map[string]map[string]string, format string) {
+	defaultCols := []string{"Name", "Archived", "State", "Project"}
+	var allCols []string
+	if extraCols != "" {
+		extra := utils.ParseColumns(extraCols)
+		allCols = extra
+	} else {
+		allCols = defaultCols
+	}
+	if len(manifestFields) > 0 {
+		for _, mf := range manifestFields {
+			allCols = append(allCols, "m_"+mf)
+		}
+	}
+
+	type repoRow map[string]interface{}
+	var rows []repoRow
+
+	for _, repo := range repos {
+		row := repoRow{}
+		for _, col := range allCols {
+			key := strings.TrimSpace(col)
+			var val interface{}
+
+			switch key {
+			case "Id":
+				val = utils.DerefInt32(repo.Id)
+			case "Name":
+				val = utils.DerefString(repo.Name)
+			case "Project":
+				val = utils.DerefString(repo.Project.Name)
+			case "State":
+				val = utils.DerefString(repo.State)
+			case "Archived":
+				val = utils.DerefBool(repo.Archived)
+			case "DefaultBranch":
+				val = utils.DerefString(repo.DefaultBranch)
+			case "Forkable":
+				val = utils.DerefBool(repo.Forkable)
+			case "Slug":
+				val = utils.DerefString(repo.Slug)
+			case "ScmId":
+				val = utils.DerefString(repo.ScmId)
+			case "Description":
+				val = utils.DerefString(repo.Description)
+			case "Public":
+				val = utils.DerefBool(repo.Public)
+			default:
+				if strings.HasPrefix(key, "m_") && manifestData != nil {
+					fieldName := strings.TrimPrefix(key, "m_")
+					slug := utils.DerefString(repo.Slug)
+					if m, ok := manifestData[slug]; ok {
+						val = m[fieldName]
+					} else {
+						val = ""
+					}
+				} else {
+					val = ""
+				}
+			}
+
+			// first letter to lowercase
+			if format == "json" || format == "yaml" {
+				lowerKey := strings.ToLower(key[:1]) + key[1:]
+				row[lowerKey] = val
+			} else {
+				row[key] = val
+			}
+		}
+		rows = append(rows, row)
+	}
+
+	wrapped := map[string]interface{}{
+		"repos": rows,
+	}
+
+	switch strings.ToLower(format) {
+	case "yaml":
+		out, err := yaml.Marshal(wrapped)
+		if err != nil {
+			log.Fatalf("Error generating YAML: %v", err)
+		}
+		fmt.Print(string(out))
+	case "json":
+		out, err := json.MarshalIndent(wrapped, "", "  ")
+		if err != nil {
+			log.Fatalf("Error generating JSON: %v", err)
+		}
+		fmt.Print(string(out))
+	default: // plain
+		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+
+		// Headers to uppercase
+		var header []string
+		for _, col := range allCols {
+			header = append(header, strings.ToUpper(col))
+		}
+		fmt.Fprintln(w, strings.Join(header, "\t"))
+
+		// values
+		for _, row := range rows {
+			var vals []string
+			for _, col := range allCols {
+				vals = append(vals, fmt.Sprintf("%v", row[col]))
+			}
+			fmt.Fprintln(w, strings.Join(vals, "\t"))
+		}
+		w.Flush()
+	}
 }
 
 func downloadFileFromRepo(client *openapi.APIClient, projectKey, repoSlug, filePath string) ([]byte, error) {

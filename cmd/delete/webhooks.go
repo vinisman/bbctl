@@ -14,7 +14,7 @@ import (
 
 type RepoWebhookYAML struct {
 	Project  string `yaml:"project"`
-	RepoSlug string `yaml:"repoSlug"`
+	RepoSlug string `yaml:"slug"`
 	Name     string `yaml:"name"`
 }
 
@@ -35,10 +35,10 @@ YAML format example:
 
 webhooks:
   - project: PRJ
-    repoSlug: my-repo
+    slug: my-repo
     name: "CI Hook"
   - project: PRJ
-    repoSlug: another-repo
+    slug: another-repo
     name: "Deploy Hook"
 
 Example usage:

@@ -15,7 +15,7 @@ import (
 
 type RepoWebhookYAML struct {
 	Project         string   `yaml:"project"`
-	RepoSlug        string   `yaml:"repoSlug"`
+	RepoSlug        string   `yaml:"slug"`
 	Name            string   `yaml:"name"`
 	URL             string   `yaml:"url"`
 	Events          []string `yaml:"events"`
@@ -49,7 +49,7 @@ YAML format example:
 
 webhooks:
   - project: PRJ
-    repoSlug: my-repo
+    slug: my-repo
     name: "CI Hook"
     url: https://ci.example.com/hook
     events:
@@ -61,7 +61,6 @@ webhooks:
     sslVerificationRequired: false
 
 Example usage:
-
   bbctl apply repo-webhooks -f webhooks.yaml
 `,
 	RunE: func(cmd *cobra.Command, args []string) error {
