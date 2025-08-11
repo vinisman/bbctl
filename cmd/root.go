@@ -43,8 +43,17 @@ func init() {
 	RootCmd.PersistentFlags().StringVar(&utils.GlobalToken, "token", "", "Bitbucket token (or env BITBUCKET_TOKEN)")
 	RootCmd.PersistentFlags().IntVar(&utils.PageSize, "page-size", 50, "Page size for repository listing")
 
+	RootCmd.CompletionOptions.DisableDefaultCmd = true
+
+	// GET
 	RootCmd.AddCommand(get.GetCmd)
+
+	// CREATE
 	RootCmd.AddCommand(create.CreateCmd)
+
+	// APPLY
 	RootCmd.AddCommand(apply.ApplyCmd)
+
+	// DELETE
 	RootCmd.AddCommand(delete.DeleteCmd)
 }

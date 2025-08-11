@@ -17,4 +17,7 @@ Available subcommands:
 
 func init() {
 	ApplyCmd.AddCommand(applyReposCmd)
+	ApplyCmd.AddCommand(applyRepoCmd)
+	ApplyCmd.AddCommand(applyRepoWebhookCmd)
+	ApplyCmd.AddCommand(applyRepoWebhooksCmd)
 }
