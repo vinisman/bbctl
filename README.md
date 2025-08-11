@@ -22,58 +22,66 @@ BITBUCKET_TOKEN=<token>
 ## Examples
 1) List repos
 ```
-$ bbctl get repos -p PROJECT1
-name
-my-repo-4
-my-repo-1
-my-repo-2
-my-repo-3
+$ bbctl get repos -p PRJ
+Name        Archived  State      Project
+my repo     false     AVAILABLE  PRJ
+myrepo      false     AVAILABLE  PRJ
+new repo    false     AVAILABLE  PRJ
+new repo 1  false     AVAILABLE  PRJ
+test        false     AVAILABLE  PRJ
+test-1      false     AVAILABLE  PRJ
 
-$ get repo my-repo-1 -p PROJECT1 --manifest-file manifest.json --template '{{.type}}'
-name            type
-my-repo-1       application
+$ bbctl get repo test -p PRJ
+Name  Archived  State      Project
+test  false     AVAILABLE  PRJ
 
 ```
 2) Create repos
 ```
-$ cat repos_to_create.yaml
-repositories:
-  - name: my-repo-1
-    defaultBranch: trunk
-    description: My test repo
-  - name: my-repo-2
-    description: My test repo
-  - name: my-repo-3
-    defaultBranch: master
-    description: Description
+$ cat out/create_repos.yaml 
+repos:
+  - name: "Repo1"
+    project: "PRJ"
+    description: "My first repo 1111"
+  - name: "Repo2"
+    slug: "my-repo-2"
+    project: "PRJ"
 
-$ bbctl create repos -p PROJECT1 -i repos_to_create.yaml
+$ bbctl create repos -f out/create_repos.yaml 
+time=2025-08-11T15:15:09.064+03:00 level=INFO msg="Repository created successfully" name=Repo1 slug=""
+time=2025-08-11T15:15:09.071+03:00 level=INFO msg="Repository created successfully" name=Repo2 slug=my-repo-2
+
 ```
 3) Delete repos
 ```
-$ cat repos_to_delete.yaml
-repositories:
-  - name: my-repo-1
-  - name: my-repo-2
-  - name: my-repo-3
+$ cat out/delete_repos.yaml 
+repos:
+  - slug: "repo1"
+    project: "PRJ"
+  - slug: "my-repo-2"
 
-$ bbctl delete repos -p PROJECT1 -i repos_to_delete.yaml
+$ bbctl delete repos -f out/repos.yaml 
+time=2025-08-11T15:16:46.120+03:00 level=ERROR msg="Repository slug is missing" project=PRJ
+time=2025-08-11T15:16:46.279+03:00 level=INFO msg="Repository deleted successfully" project=PRJ slug=my-repo-2
+
 ```
 
-3) Update repos
+4) Update repos
 ```
-$ cat repos_to_update.yaml
-repositories:
-  - name: my-repo-1
-    defaultBranch: trunk
-    description: My test repo new
-  - name: my-repo-2
-    description: My test repo new
-  - name: my-repo-3
-    defaultBranch: master
-    description: Description
+$ cat out/update_repos.yaml 
+repos:
+  - name: "Repo1"
+    slug: "repo1"
+    project: "PRJ"
+    description: "My first repo"
+  - name: "Repo2"
+    slug: "repo2"
+    project: "PRJ"
 
-$ bbctl apply repos -p PROJECT1 -i repos_to_update.yaml
+$ bbctl apply repos -f out/update_repos.yaml 
+time=2025-08-11T15:24:33.724+03:00 level=INFO msg="Repository updated successfully" name=Repo2 slug=repo2
+time=2025-08-11T15:24:33.799+03:00 level=INFO msg="Repository updated successfully" name=Repo1 slug=repo1
+
 ```
 
 
