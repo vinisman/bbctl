@@ -1,0 +1,9 @@
+repositories:
+  - projectKey: d_project_1
+    repository:
+      name: repo1
+      description: Description for repo1
+  - projectKey: d_project_1
+    repository:
+      name: repo2
+      description: Description for repo2

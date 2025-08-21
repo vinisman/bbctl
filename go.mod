@@ -1,12 +1,14 @@
 module github.com/vinisman/bbctl
 
-go 1.23.11
+go 1.23.0
+
+toolchain go1.23.12
 
 require (
 	github.com/joho/godotenv v1.5.1
 	github.com/spf13/cobra v1.9.1
-	github.com/vinisman/bitbucket-sdk-go v0.0.1
-	gopkg.in/yaml.v2 v2.4.0
+	github.com/vinisman/bitbucket-sdk-go v0.0.2
+	golang.org/x/text v0.28.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 

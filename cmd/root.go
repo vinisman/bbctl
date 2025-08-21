@@ -1,59 +1,91 @@
 package cmd
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
 
+	"github.com/joho/godotenv"
 	"github.com/spf13/cobra"
-	"github.com/vinisman/bbctl/cmd/apply"
-	"github.com/vinisman/bbctl/cmd/create"
-	"github.com/vinisman/bbctl/cmd/delete"
-	"github.com/vinisman/bbctl/cmd/get"
-	"github.com/vinisman/bbctl/utils"
+	"github.com/vinisman/bbctl/cmd/project"
+	"github.com/vinisman/bbctl/cmd/repo"
+	"github.com/vinisman/bbctl/internal/config"
 )
 
-var RootCmd = &cobra.Command{
-	Use:   "bbctl",
-	Short: "CLI tool for Bitbucket repositories management",
-	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		var err error
-		utils.Cfg, err = utils.LoadConfig()
-		if err != nil {
-			return err
-		}
+var (
+	debug bool
 
-		level := slog.LevelInfo
-		if utils.Debug {
-			level = slog.LevelDebug
-		}
-		utils.Logger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level}))
-		return nil
-	},
-}
+	// Global flags for authentication and URL
+	flagURL      string
+	flagToken    string
+	flagUsername string
+	flagPassword string
+	flagPageSize int
+)
 
-func Execute() {
-	if err := RootCmd.Execute(); err != nil {
-		os.Exit(1)
+func NewRootCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "bbctl",
+		Short: "Bitbucket Data Center CLI",
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+
+			// Load environment variables from .env file
+			_ = godotenv.Load()
+
+			// Load config from environment
+			c, err := config.LoadConfig()
+			if err != nil {
+				return err
+			}
+
+			// Override config with flags if provided
+			if flagURL != "" {
+				c.BaseURL = flagURL
+			}
+			if flagToken != "" {
+				c.Token = flagToken
+			}
+			if flagUsername != "" {
+				c.Username = flagUsername
+			}
+			if flagPassword != "" {
+				c.Password = flagPassword
+			}
+
+			if flagPageSize > 0 {
+				c.PageSize = flagPageSize
+			}
+
+			// Validate authentication
+			if c.Token == "" && (c.Username == "" || c.Password == "") {
+				return fmt.Errorf("either token or username/password must be provided")
+			}
+
+			config.GlobalCfg = c
+
+			// Initialize logger
+			level := slog.LevelInfo
+			if debug {
+				level = slog.LevelDebug
+			}
+			config.GlobalLogger = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level}))
+			return nil
+		},
 	}
-}
 
-func init() {
-	RootCmd.PersistentFlags().BoolVar(&utils.Debug, "debug", false, "enable debug logging")
-	RootCmd.PersistentFlags().StringVar(&utils.GlobalURL, "base-url", "", "Bitbucket base URL (or env BITBUCKET_BASE_URL)")
-	RootCmd.PersistentFlags().StringVar(&utils.GlobalToken, "token", "", "Bitbucket token (or env BITBUCKET_TOKEN)")
-	RootCmd.PersistentFlags().IntVar(&utils.PageSize, "page-size", 50, "Page size for repository listing")
+	// Global flags with clear descriptions
+	cmd.PersistentFlags().BoolVar(&debug, "debug", false, "Enable debug mode (verbose logging)")
+	cmd.PersistentFlags().StringVar(&flagURL, "url", "", "Bitbucket Base URL (overrides BITBUCKET_BASE_URL)")
+	cmd.PersistentFlags().StringVar(&flagToken, "token", "", "Bitbucket API token (overrides BITBUCKET_TOKEN)")
+	cmd.PersistentFlags().StringVarP(&flagUsername, "username", "u", "", "Bitbucket username (overrides BITBUCKET_USERNAME)")
+	cmd.PersistentFlags().StringVarP(&flagPassword, "password", "p", "", "Bitbucket password (overrides BITBUCKET_PASSWORD)")
+	cmd.PersistentFlags().IntVar(&flagPageSize, "page-size", 0, "Page size for API requests (overrides BITBUCKET_PAGE_SIZE, default 50)")
 
-	RootCmd.CompletionOptions.DisableDefaultCmd = true
+	// Add subcommands
+	cmd.AddCommand(
+		repo.NewRepoCmd(),
+		project.NewProjectCmd(),
+	)
 
-	// GET
-	RootCmd.AddCommand(get.GetCmd)
-
-	// CREATE
-	RootCmd.AddCommand(create.CreateCmd)
-
-	// APPLY
-	RootCmd.AddCommand(apply.ApplyCmd)
-
-	// DELETE
-	RootCmd.AddCommand(delete.DeleteCmd)
+	return cmd
 }
