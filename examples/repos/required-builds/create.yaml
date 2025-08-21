@@ -1,0 +1,22 @@
+repositories:
+  - projectKey: project_1
+    repositorySlug: repo2
+    requiredBuilds:  
+      - buildparentkeys:
+          - some_job
+        exemptrefmatcher: null
+        refmatcher:
+          displayid: ANY_REF_MATCHER_ID
+          id: ANY_REF_MATCHER_ID
+          type:
+              id: ANY_REF
+              name: Any branch
+      - buildparentkeys:
+          - some_job
+        exemptrefmatcher: null
+        refmatcher:
+          displayid: ANY_REF_MATCHER_ID
+          id: ANY_REF_MATCHER_ID
+          type:
+              id: ANY_REF
+              name: Any branch

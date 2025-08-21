@@ -1,0 +1,7 @@
+projects:
+  - description: Description for project 1
+    key: d_project_1
+    name: Demo project 1
+  - description: Description for project_2
+    key: d_project_2
+  - key: d_project_3

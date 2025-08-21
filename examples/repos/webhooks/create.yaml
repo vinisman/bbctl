@@ -1,0 +1,27 @@
+repositories:
+  - projectKey: project_1
+    repositorySlug: repo1
+    webhooks:
+      - name: build-hook
+        url: https://ci.example.com/webhook1
+        events:
+          - repo:refs_changed
+        active: true
+        scopeType: REPOSITORY
+        sslVerificationRequired: true
+        credentials:
+          username: myuser
+          password: mypass
+  - projectKey: project_1
+    repositorySlug: repo2
+    webhooks:
+      - name: build-hook
+        url: https://ci.example.com/webhook2
+        events:
+          - repo:refs_changed
+        active: true
+        scopeType: REPOSITORY
+        sslVerificationRequired: true
+        credentials:
+          username: myuser
+          password: mypass

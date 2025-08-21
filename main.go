@@ -1,7 +1,14 @@
 package main
 
-import "github.com/vinisman/bbctl/cmd"
+import (
+	"os"
+
+	"github.com/vinisman/bbctl/cmd"
+)
 
 func main() {
-	cmd.Execute()
+	rootCmd := cmd.NewRootCmd()
+	if err := rootCmd.Execute(); err != nil {
+		os.Exit(1)
+	}
 }
