@@ -3,6 +3,8 @@ package repo
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/vinisman/bbctl/internal/bitbucket"
@@ -24,9 +26,25 @@ func NewGetCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "get",
 		Short: "Get repositories from Bitbucket",
+		Long: `Get repositories from Bitbucket.
+You can specify either:
+  --projectKey to get all repositories for one or more projects
+  --repositorySlug to get a specific repository
+  --input to load repository identifiers from a YAML file
+Only one of these options should be used at a time.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if (projectKey == "" && inputFile == "") || (projectKey != "" && inputFile != "") {
-				return fmt.Errorf("please specify exactly one of --projectKey or --input")
+			count := 0
+			if projectKey != "" {
+				count++
+			}
+			if repositorySlug != "" {
+				count++
+			}
+			if inputFile != "" {
+				count++
+			}
+			if count != 1 {
+				return fmt.Errorf("please specify exactly one of --projectKey, --repositorySlug or --input")
 			}
 
 			client, err := bitbucket.NewClient(context.Background())
@@ -100,13 +118,21 @@ func NewGetCmd() *cobra.Command {
 				}
 
 				switch {
-				case len(slugList) > 0 && len(projects) == 1:
-					// Get repos by project & slug(s)
-					repos, err = client.GetReposBySlugs(projects[0], slugList, options)
-					if err != nil {
-						return err
+				case len(slugList) > 0:
+					for _, combined := range slugList {
+						parts := strings.SplitN(combined, "/", 2)
+						if len(parts) != 2 || parts[1] == "" {
+							client.Logger.Error("invalid repository identifier format", slog.String("identifier", combined))
+							continue
+						}
+						project := parts[0]
+						slug := parts[1]
+						r, err := client.GetReposBySlugs(project, []string{slug}, options)
+						if err != nil {
+							return err
+						}
+						repos = append(repos, r...)
 					}
-
 				case len(slugList) == 0 && len(projects) == 1:
 					// Get all repos for single project
 					repos, err = client.GetAllReposForProject(projects[0], options)
@@ -120,7 +146,7 @@ func NewGetCmd() *cobra.Command {
 						return err
 					}
 				default:
-					return fmt.Errorf("invalid combination of --project and --slug")
+					return fmt.Errorf("invalid combination of --projectKey and --repositorySlug")
 				}
 			}
 
@@ -135,7 +161,7 @@ func NewGetCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&projectKey, "projectKey", "k", "", "Comma-separated project keys")
-	cmd.Flags().StringVarP(&repositorySlug, "repositorySlug", "s", "", "Comma-separated repository slugs (requires single project)")
+	cmd.Flags().StringVarP(&repositorySlug, "repositorySlug", "s", "", "Comma-separated repository identifiers in format <projectKey>/<repositorySlug>")
 	cmd.Flags().StringVar(&columns, "columns", "", "Comma-separated list of fields to display (for plain output)")
 	cmd.Flags().StringVarP(&output, "output", "o", "plain", "Output format: plain|yaml|json")
 	cmd.Flags().StringVar(&manifestFile, "manifest-file", "", "Path to the manifest file to output")
