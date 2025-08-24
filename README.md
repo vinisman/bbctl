@@ -101,7 +101,7 @@ id  name    slug    project
 
 Get repository in yaml format
 ```
-$ bbctl repo get -k PROJECT_1 -s repo1 -o yaml
+$ bbctl repo get -s PROJECT_1/repo1 -o yaml
 repositories:
     - projectKey: PROJECT_1
       repositorySlug: repo1
@@ -145,7 +145,7 @@ repositories:
 
 Get repository with details in yaml format
 ```
-$ bbctl repo get -k project_1 -s repo1 --show-details webhooks -o yaml
+$ bbctl repo get -s PROJECT_1/repo1 --show-details webhooks -o yaml
 repositories:
     - projectKey: project_1
       repositorySlug: repo1
