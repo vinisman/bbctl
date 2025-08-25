@@ -518,7 +518,7 @@ func (c *Client) CreateRepos(repos []models.ExtendedRepository) error {
 			for r := range jobsCh {
 				// Validate required fields
 				if r.RestRepository.Name == nil || r.ProjectKey == "" {
-					resultsCh <- result{slug: utils.SafeString(r.RestRepository.Slug), err: fmt.Errorf("name and projectKey are required")}
+					resultsCh <- result{slug: utils.SafeValue(r.RestRepository.Slug), err: fmt.Errorf("name and projectKey are required")}
 					continue
 				}
 
@@ -526,9 +526,9 @@ func (c *Client) CreateRepos(repos []models.ExtendedRepository) error {
 					RestRepository(r.RestRepository).
 					Execute()
 				if err != nil {
-					resultsCh <- result{slug: utils.SafeString(r.RestRepository.Slug), name: utils.SafeString(r.RestRepository.Name), err: err}
+					resultsCh <- result{slug: utils.SafeValue(r.RestRepository.Slug), name: utils.SafeValue(r.RestRepository.Name), err: err}
 				} else {
-					resultsCh <- result{slug: utils.SafeString(created.Slug), name: utils.SafeString(r.RestRepository.Name)}
+					resultsCh <- result{slug: utils.SafeValue(created.Slug), name: utils.SafeValue(r.RestRepository.Name)}
 				}
 			}
 		}()
@@ -587,9 +587,9 @@ func (c *Client) UpdateRepos(repos []models.ExtendedRepository) error {
 					Execute()
 				if err != nil {
 					c.logger.Debug("Details", "httpResp", httpResp)
-					resultsCh <- result{slug: utils.SafeString(&r.RepositorySlug), err: err}
+					resultsCh <- result{slug: utils.SafeValue(&r.RepositorySlug), err: err}
 				} else {
-					resultsCh <- result{slug: utils.SafeString(updated.Slug)}
+					resultsCh <- result{slug: utils.SafeValue(updated.Slug)}
 				}
 			}
 		}()
@@ -642,7 +642,7 @@ func (c *Client) ForkRepos(repos []models.ExtendedRepository) error {
 			for r := range jobsCh {
 				if r.ProjectKey == "" || r.RepositorySlug == "" {
 					resultsCh <- result{
-						forkName:      utils.SafeString(r.RestRepository.Name),
+						forkName:      utils.SafeValue(r.RestRepository.Name),
 						sourceProject: r.ProjectKey,
 						sourceSlug:    r.RepositorySlug,
 						forkProject:   "",
@@ -658,7 +658,7 @@ func (c *Client) ForkRepos(repos []models.ExtendedRepository) error {
 				if createdFork != nil && createdFork.Name != nil {
 					forkName = *createdFork.Name
 				} else {
-					forkName = utils.SafeString(r.RestRepository.Name)
+					forkName = utils.SafeValue(r.RestRepository.Name)
 				}
 
 				c.logger.Debug("Details", "httpResp", httpResp)

@@ -9,11 +9,12 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func SafeString(s *string) string {
-	if s == nil {
-		return "<nil>"
+func SafeValue[T any](v *T) T {
+	var zero T
+	if v == nil {
+		return zero
 	}
-	return *s
+	return *v
 }
 
 func SafeInterface(v interface{}) string {
@@ -21,13 +22,6 @@ func SafeInterface(v interface{}) string {
 		return "<nil>"
 	}
 	return fmt.Sprintf("%v", v)
-}
-
-func SafeInt32(i *int32) string {
-	if i == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("%d", *i)
 }
 
 func Int32PtrToString(v *int32) string {

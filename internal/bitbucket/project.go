@@ -170,9 +170,9 @@ func (c *Client) CreateProjects(projects []openapi.RestProject) error {
 					Execute()
 				if err != nil {
 					c.logger.Debug("Details", "httpResp", httpResp)
-					resultsCh <- result{key: utils.SafeString(p.Key), err: err}
+					resultsCh <- result{key: utils.SafeValue(p.Key), err: err}
 				} else {
-					resultsCh <- result{key: utils.SafeString(created.Key)}
+					resultsCh <- result{key: utils.SafeValue(created.Key)}
 				}
 			}
 		}()
@@ -230,9 +230,9 @@ func (c *Client) UpdateProjects(projects []openapi.RestProject) error {
 					RestProject(p).
 					Execute()
 				if err != nil {
-					resultsCh <- result{key: utils.SafeString(p.Key), err: err}
+					resultsCh <- result{key: utils.SafeValue(p.Key), err: err}
 				} else {
-					resultsCh <- result{key: utils.SafeString(updated.Key)}
+					resultsCh <- result{key: utils.SafeValue(updated.Key)}
 				}
 			}
 		}()

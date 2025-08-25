@@ -74,7 +74,7 @@ func (c *Client) CreateWebhooks(repos []models.ExtendedRepository) error {
 			if err != nil {
 				c.logger.Debug("details", "httpResp", httpResp)
 				errCh <- fmt.Errorf("failed to create webhook %s in %s/%s: %w",
-					utils.SafeString(j.webhook.Name),
+					utils.SafeValue(j.webhook.Name),
 					j.repo.ProjectKey, j.repo.RepositorySlug, err)
 				continue
 			}
@@ -82,9 +82,9 @@ func (c *Client) CreateWebhooks(repos []models.ExtendedRepository) error {
 			c.logger.Info("Created webhook",
 				"project", j.repo.ProjectKey,
 				"repo", j.repo.RepositorySlug,
-				"id", utils.SafeInt32(created.Id),
-				"name", utils.SafeString(created.Name),
-				"url", utils.SafeString(created.Url))
+				"id", utils.SafeValue(created.Id),
+				"name", utils.SafeValue(created.Name),
+				"url", utils.SafeValue(created.Url))
 		}
 	}
 
@@ -158,9 +158,9 @@ func (c *Client) UpdateWebhooks(repos []models.ExtendedRepository) error {
 			c.logger.Info("Updated webhook",
 				"project", j.repo.ProjectKey,
 				"repo", j.repo.RepositorySlug,
-				"id", utils.SafeInt32(updated.Id),
-				"name", utils.SafeString(updated.Name),
-				"url", utils.SafeString(updated.Url))
+				"id", utils.SafeValue(updated.Id),
+				"name", utils.SafeValue(updated.Name),
+				"url", utils.SafeValue(updated.Url))
 		}
 	}
 
