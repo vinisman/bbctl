@@ -38,9 +38,7 @@ func UpdateRequiredBuildCmd() *cobra.Command {
 			err = client.UpdateRequiredBuilds(parsed.Repositories)
 			if err != nil {
 				client.Logger.Error(err.Error())
-				return err
 			}
-
 			return nil
 		},
 	}

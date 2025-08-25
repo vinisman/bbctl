@@ -81,7 +81,7 @@ func DeleteWebHookCmd() *cobra.Command {
 
 			err = client.DeleteWebhooks(repositories)
 			if err != nil {
-				return err
+				client.Logger.Error(err.Error())
 			}
 
 			return nil

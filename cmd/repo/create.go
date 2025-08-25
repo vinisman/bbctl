@@ -72,7 +72,6 @@ You must specify either:
 			err = client.CreateRepos(repos)
 			if err != nil {
 				client.Logger.Error(err.Error())
-				return nil
 			}
 			return nil
 		},

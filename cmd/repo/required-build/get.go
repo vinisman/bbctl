@@ -38,9 +38,9 @@ func GetRequiredBuildCmd() *cobra.Command {
 
 			values, err := client.GetRequiredBuilds(projectKey, slug)
 			if err != nil {
-				return err
+				client.Logger.Error(err.Error())
+				return nil
 			}
-
 			return utils.PrintStructured("requiredBuilds", values, output, "id")
 
 		},

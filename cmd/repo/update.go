@@ -3,6 +3,7 @@ package repo
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/vinisman/bbctl/internal/bitbucket"
@@ -13,25 +14,23 @@ import (
 
 func NewUpdateCmd() *cobra.Command {
 	var (
-		projectKey     string
 		repositorySlug string
 		name           string
 		description    string
 		defaultBranch  string
 		file           string
+		newProjectKey  string
 	)
 
 	cmd := &cobra.Command{
 		Use:   "update",
 		Short: "Update a repository",
-		Long: `Update a single repository or multiple repositories defined in a YAML file.
-You must specify either --projectKey and --repositorySlug for a single repository, 
-or --input for a YAML file containing multiple repositories.`,
+		Long: `Update a single repository defined by --repositorySlug in format <projectKey>/<repositorySlug>, 
+or multiple repositories defined in a YAML file with --input.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Validate input: either single repo or file
-			if (file != "" && (projectKey != "" || repositorySlug != "")) ||
-				(file == "" && (projectKey == "" || repositorySlug == "")) {
-				return fmt.Errorf("either --input or (--projectKey and --repositorySlug) must be specified, but not both")
+			if (file != "" && repositorySlug != "") || (file == "" && repositorySlug == "") {
+				return fmt.Errorf("either --input or --repositorySlug must be specified, but not both")
 			}
 
 			client, err := bitbucket.NewClient(context.Background())
@@ -51,26 +50,38 @@ or --input for a YAML file containing multiple repositories.`,
 			}
 
 			// Case 2: update single repository from CLI flags
+			parts := strings.SplitN(repositorySlug, "/", 2)
+			if len(parts) != 2 || parts[1] == "" {
+				client.Logger.Error("Invalid repositorySlug format, expected <projectKey>/<repositorySlug>")
+				return fmt.Errorf("invalid repositorySlug format, expected <projectKey>/<repositorySlug>")
+			}
+			projectKey := parts[0]
+			slug := parts[1]
+
 			repo := models.ExtendedRepository{
 				ProjectKey:     projectKey,
-				RepositorySlug: repositorySlug,
+				RepositorySlug: slug,
 				RestRepository: openapi.RestRepository{
-					Slug:        &repositorySlug,
+					Slug:        &slug,
 					Name:        utils.OptionalString(name),
 					Description: utils.OptionalString(description),
+					Project:     &openapi.RestChangesetRepositoryOriginProject{Key: newProjectKey},
 				},
 			}
 
 			if defaultBranch != "" {
 				repo.RestRepository.DefaultBranch = &defaultBranch
 			}
+			err = client.UpdateRepos([]models.ExtendedRepository{repo})
 
-			return client.UpdateRepos([]models.ExtendedRepository{repo})
+			if err != nil {
+				client.Logger.Error(err.Error())
+			}
+			return nil
 		},
 	}
 
-	cmd.Flags().StringVarP(&projectKey, "projectKey", "k", "", "Project key (required if --input not used)")
-	cmd.Flags().StringVarP(&repositorySlug, "repositorySlug", "s", "", "Repository slug (required if --input not used)")
+	cmd.Flags().StringVarP(&repositorySlug, "repositorySlug", "s", "", "Identifier of the current repository in format <projectKey>/<repositorySlug> (required if --input not used)")
 	cmd.Flags().StringVar(&name, "name", "", "Repository name (optional)")
 	cmd.Flags().StringVar(&description, "desc", "", "Repository description (optional)")
 	cmd.Flags().StringVar(&defaultBranch, "default-branch", "", "Default branch name (optional)")
@@ -88,6 +99,7 @@ repositories:
       description: "Updated description"
       defaultBranch: "develop"
 `)
+	cmd.Flags().StringVar(&newProjectKey, "newProjectKey", "", "New project key for moving the repository (optional)")
 
 	return cmd
 }

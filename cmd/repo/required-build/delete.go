@@ -81,9 +81,8 @@ func DeleteRequiredBuildCmd() *cobra.Command {
 
 			err = client.DeleteRequiredBuilds(repositories)
 			if err != nil {
-				return err
+				client.Logger.Error(err.Error())
 			}
-
 			return nil
 		},
 	}

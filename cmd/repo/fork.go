@@ -3,6 +3,7 @@ package repo
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/vinisman/bbctl/internal/bitbucket"
@@ -13,26 +14,25 @@ import (
 
 func NewForkCmd() *cobra.Command {
 	var (
-		projectKey        string
-		repositorySlug    string
-		forkProject       string
-		forkName          string
-		forkDefaultBranch string
-		forkDescription   string
-		file              string
+		repositorySlug   string
+		newProjectKey    string
+		newName          string
+		newDefaultBranch string
+		newDescription   string
+		file             string
 	)
 
 	cmd := &cobra.Command{
 		Use:   "fork",
 		Short: "Fork a repository",
 		Long: `Fork a single repository or multiple repositories defined in a YAML file.
-You must specify either --projectKey and --repositorySlug with --fProjectKey for a single repository,
+You must specify either --repositorySlug with --newProjectKey for a single repository,
 or --input for a YAML file containing multiple forks.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Validate input: either single fork or file
-			if (file != "" && (projectKey != "" || repositorySlug != "" || forkProject != "")) ||
-				(file == "" && (projectKey == "" || repositorySlug == "" || forkProject == "")) {
-				return fmt.Errorf("either --input, or --projectKey/--repositorySlug with --fProjectKey must be specified, but not both")
+			if (file != "" && repositorySlug != "") ||
+				(file == "" && repositorySlug == "") {
+				return fmt.Errorf("either --input, or --repositorySlug must be specified, but not both")
 			}
 
 			client, err := bitbucket.NewClient(context.Background())
@@ -52,42 +52,54 @@ or --input for a YAML file containing multiple forks.`,
 			}
 
 			// Case 2: fork single repository
+			parts := strings.SplitN(repositorySlug, "/", 2)
+			if len(parts) != 2 || parts[1] == "" {
+				client.Logger.Error("invalid repository identifier format, repository slug is empty")
+				return fmt.Errorf("invalid repository identifier format, repository slug is empty")
+			}
+			sourceProjectKey := parts[0]
+			sourceSlug := parts[1]
+
+			// Build RestRepository with only specified fields (leave others nil)
+			restRepo := openapi.RestRepository{}
+
+			if newName != "" {
+				restRepo.Name = &newName
+			}
+			if newDescription != "" {
+				restRepo.Description = &newDescription
+			}
+			if newDefaultBranch != "" {
+				restRepo.DefaultBranch = &newDefaultBranch
+			}
+			if newProjectKey != "" {
+				restRepo.Project = &openapi.RestChangesetRepositoryOriginProject{Key: newProjectKey}
+			} else {
+				restRepo.Project = &openapi.RestChangesetRepositoryOriginProject{Key: sourceProjectKey}
+			}
+			// If at least one key is set, set ScmId and Forkable to defaults if you want, or leave nil.
+			// (Instruction: only set given keys, so leave others nil.)
 			repo := models.ExtendedRepository{
-				ProjectKey:     projectKey,
-				RepositorySlug: repositorySlug,
-				RestRepository: openapi.RestRepository{
-					Name:        &forkName,
-					Description: &forkDescription,
-					ScmId:       utils.OptionalString("git"),
-					Forkable:    utils.OptionalBool(true),
-					DefaultBranch: func() *string {
-						if forkDefaultBranch == "" {
-							return nil
-						}
-						return &forkDefaultBranch
-					}(),
-					Project: &openapi.RestChangesetRepositoryOriginProject{
-						Key: forkProject,
-					},
-				},
+				ProjectKey:     sourceProjectKey,
+				RepositorySlug: sourceSlug,
+				RestRepository: restRepo,
 			}
 
 			err = client.ForkRepos([]models.ExtendedRepository{repo})
 			if err != nil {
-				return err
+				client.Logger.Error(err.Error())
 			}
 
-			fmt.Printf("Forked repository: %s/%s -> %s\n", projectKey, repositorySlug, forkProject)
+			fmt.Printf("Forked repository: %s -> %s\n", repositorySlug, newProjectKey)
 			return nil
 		},
 	}
 
-	cmd.Flags().StringVarP(&projectKey, "projectKey", "k", "", "Project key of the repository to fork (required if --input not used)")
-	cmd.Flags().StringVarP(&repositorySlug, "repositorySlug", "s", "", "Slug of the repository to fork (required if --input not used)")
-	cmd.Flags().StringVar(&forkProject, "fProjectKey", "", "Project key where the fork will be created (required if --input not used)")
-	cmd.Flags().StringVar(&forkName, "name", "", "Optional name of the forked repository")
-	cmd.Flags().StringVar(&forkDefaultBranch, "defaultBranch", "", "Optional default branch for the forked repository")
-	cmd.Flags().StringVar(&forkDescription, "description", "", "Optional description for the forked repository")
+	cmd.Flags().StringVarP(&repositorySlug, "repositorySlug", "s", "", "Repository identifier in format <projectKey>/<repositorySlug> of the repository to fork (required if --input not used)")
+	cmd.Flags().StringVar(&newProjectKey, "newProjectKey", "", "New project key where the fork will be created (required if --input not used)")
+	cmd.Flags().StringVar(&newName, "newName", "", "New name of the forked repository (optional, defaults to current repository name if not set)")
+	cmd.Flags().StringVar(&newDefaultBranch, "newDefaultBranch", "", "New default branch for the forked repository (optional)")
+	cmd.Flags().StringVar(&newDescription, "newDescription", "", "New description for the forked repository (optional)")
 	cmd.Flags().StringVarP(&file, "input", "i", "", `Path to YAML file with forks to create.
 Example YAML structure:
 repositories:
