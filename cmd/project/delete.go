@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/vinisman/bbctl/internal/bitbucket"
+	"github.com/vinisman/bbctl/internal/models"
 	"github.com/vinisman/bbctl/utils"
 )
 
@@ -43,9 +44,7 @@ func NewDeleteCmd() *cobra.Command {
 
 			// Case 2: keys from YAML
 			if file != "" {
-				var parsed struct {
-					Projects []string `yaml:"projects"`
-				}
+				var parsed models.ProjectList
 				if err := utils.ParseYAMLFile(file, &parsed); err != nil {
 					return err
 				}

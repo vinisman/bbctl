@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/vinisman/bbctl/internal/bitbucket"
+	"github.com/vinisman/bbctl/internal/models"
 	"github.com/vinisman/bbctl/utils"
 	openapi "github.com/vinisman/bitbucket-sdk-go/openapi"
 )
@@ -63,9 +64,7 @@ You must specify exactly one of the following options:
 					return nil
 				}
 			case file != "":
-				var parsed struct {
-					Projects []string `yaml:"projects"`
-				}
+				var parsed models.ProjectList
 				if err := utils.ParseYAMLFile(file, &parsed); err != nil {
 					return fmt.Errorf("failed to parse YAML file %s: %w", file, err)
 				}

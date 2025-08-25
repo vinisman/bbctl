@@ -29,12 +29,14 @@ type RepositoryOptions struct {
 	RequiredBuilds bool
 }
 
-// RepoRef represents a repository reference with project key and slug
-type RepoRef struct {
-	Project string `yaml:"project"`
-	Slug    string `yaml:"slug"`
-}
-
 type RepositoryYaml struct {
 	Repositories []ExtendedRepository `yaml:"repositories"`
+}
+
+type ProjectYaml struct {
+	Projects []openapi.RestProject `yaml:"projects"`
+}
+
+type ProjectList struct {
+	Projects []string `yaml:"projects"`
 }

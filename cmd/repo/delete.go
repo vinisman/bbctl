@@ -3,6 +3,7 @@ package repo
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/vinisman/bbctl/internal/bitbucket"
@@ -12,7 +13,6 @@ import (
 
 func NewDeleteCmd() *cobra.Command {
 	var (
-		projectKey     string
 		repositorySlug string
 		file           string
 	)
@@ -20,12 +20,11 @@ func NewDeleteCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "delete",
 		Short: "Delete a repository",
-		Long:  `Delete one or more repositories. You must specify either --project and --slug for a single repository, or --input for a YAML file with multiple repositories.`,
+		Long:  `Delete one or more repositories. You must specify either --repositorySlug in the format <projectKey>/<repositorySlug> for a single repository, or --input for a YAML file with multiple repositories.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Validate input: either single repo or YAML file
-			if (file != "" && (projectKey != "" || repositorySlug != "")) ||
-				(file == "" && (projectKey == "" || repositorySlug == "")) {
-				return fmt.Errorf("either --project and --slug, or --input must be specified, but not both")
+			if (file != "" && repositorySlug != "") || (file == "" && repositorySlug == "") {
+				return fmt.Errorf("either --repositorySlug or --input must be specified, but not both")
 			}
 
 			client, err := bitbucket.NewClient(context.Background())
@@ -35,9 +34,8 @@ func NewDeleteCmd() *cobra.Command {
 
 			// Case 1: delete from YAML file
 			if file != "" {
-				var parsed struct {
-					Repositories []models.ExtendedRepository `yaml:"repositories"`
-				}
+				var parsed models.RepositoryYaml
+
 				if err := utils.ParseYAMLFile(file, &parsed); err != nil {
 					return err
 				}
@@ -48,9 +46,17 @@ func NewDeleteCmd() *cobra.Command {
 			}
 
 			// Case 2: delete single repo by project+slug
+			parts := strings.SplitN(repositorySlug, "/", 2)
+			if len(parts) != 2 || parts[1] == "" {
+				client.Logger.Error("invalid repository identifier format, repository slug is empty")
+				return fmt.Errorf("invalid repository identifier format, expected <projectKey>/<repositorySlug>")
+			}
+			projectKey := parts[0]
+			slug := parts[1]
+
 			ref := models.ExtendedRepository{
 				ProjectKey:     projectKey,
-				RepositorySlug: repositorySlug,
+				RepositorySlug: slug,
 			}
 			err = client.DeleteRepos([]models.ExtendedRepository{ref})
 			if err != nil {
@@ -60,8 +66,7 @@ func NewDeleteCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&projectKey, "project", "k", "", "Project key of the repository (required if --input not used)")
-	cmd.Flags().StringVarP(&repositorySlug, "repositorySlug", "s", "", "Slug of the repository (required if --input not used)")
+	cmd.Flags().StringVarP(&repositorySlug, "repositorySlug", "s", "", "Identifier of the current repository in format <projectKey>/<repositorySlug> (required if --input not used)")
 	cmd.Flags().StringVarP(&file, "input", "i", "", `Path to YAML file with repositories to delete.
 Example file content:
 repositories:

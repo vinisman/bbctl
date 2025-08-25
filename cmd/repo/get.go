@@ -93,9 +93,7 @@ Only one of these options should be used at a time.`,
 			}
 
 			if inputFile != "" {
-				var parsed struct {
-					Repositories []models.ExtendedRepository `yaml:"repositories"`
-				}
+				var parsed models.RepositoryYaml
 				if err := utils.ParseYAMLFile(inputFile, &parsed); err != nil {
 					return err
 				}
@@ -114,7 +112,7 @@ Only one of these options should be used at a time.`,
 					cols = utils.ParseColumns(columns)
 				} else {
 					// default columns for repositories
-					cols = []string{"Id", "Name", "Project"}
+					cols = []string{"Id", "Name", "Slug", "Project"}
 				}
 
 				switch {

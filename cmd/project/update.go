@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/vinisman/bbctl/internal/bitbucket"
+	"github.com/vinisman/bbctl/internal/models"
 	"github.com/vinisman/bbctl/utils"
 	openapi "github.com/vinisman/bitbucket-sdk-go/openapi"
 )
@@ -50,9 +51,7 @@ func NewUpdateCmd() *cobra.Command {
 
 			// Case 2: update from YAML file
 			if file != "" {
-				var parsed struct {
-					Projects []openapi.RestProject `yaml:"projects"`
-				}
+				var parsed models.ProjectYaml
 				if err := utils.ParseYAMLFile(file, &parsed); err != nil {
 					return fmt.Errorf("failed to parse YAML file %s: %w", file, err)
 				}
