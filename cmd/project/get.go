@@ -80,7 +80,9 @@ You must specify exactly one of the following options:
 				}
 			}
 
-			utils.PrintStructured("projects", projects, output, "id,name,key,description")
+			if err := utils.PrintStructured("projects", projects, output, "id,name,key,description"); err != nil {
+				return fmt.Errorf("failed to print output: %w", err)
+			}
 			return nil
 		},
 	}

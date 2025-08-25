@@ -3,6 +3,7 @@ package utils
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -50,9 +51,28 @@ func ParseColumns(columns string) []string {
 	return out
 }
 
+func isSafePath(path string) bool {
+
+	if strings.Contains(path, "..") || strings.Contains(path, "~") {
+		return false
+	}
+
+	cleanPath := filepath.Clean(path)
+	return !filepath.IsAbs(cleanPath) && !strings.HasPrefix(cleanPath, "../")
+}
+
 // ParseYAMLFile reads YAML file and unmarshals into provided struct pointer
 func ParseYAMLFile[T any](filePath string, out *T) error {
-	data, err := os.ReadFile(filePath)
+	if !isSafePath(filePath) {
+		return fmt.Errorf("invalid file path")
+	}
+
+	cleanPath := filepath.Clean(filePath)
+	if strings.Contains(cleanPath, "..") || strings.HasPrefix(cleanPath, "/") {
+		return fmt.Errorf("invalid file path")
+	}
+
+	data, err := os.ReadFile(cleanPath)
 	if err != nil {
 		return fmt.Errorf("failed to read file %s: %w", filePath, err)
 	}

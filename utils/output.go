@@ -3,6 +3,7 @@ package utils
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"reflect"
 	"strings"
@@ -89,7 +90,9 @@ func PrintRepos(repos []models.ExtendedRepository, columns []string) {
 		fmt.Fprintln(w)
 	}
 
-	w.Flush()
+	if err := w.Flush(); err != nil {
+		log.Printf("Warning: failed to flush writer: %v", err)
+	}
 }
 
 // PrintStructured prints data in JSON, YAML, or plain table format
@@ -178,6 +181,8 @@ func printPlain(data interface{}, columns string) error {
 		fmt.Fprintln(w)
 	}
 
-	w.Flush()
+	if err := w.Flush(); err != nil {
+		return fmt.Errorf("failed to flush writer: %w", err)
+	}
 	return nil
 }
