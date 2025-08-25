@@ -3,6 +3,7 @@ package webhook
 import (
 	"context"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 
@@ -57,6 +58,9 @@ func DeleteWebHookCmd() *cobra.Command {
 					idInt, err := strconv.ParseInt(idStr, 10, 64)
 					if err != nil {
 						return fmt.Errorf("invalid webhook id '%s': %w", idStr, err)
+					}
+					if idInt < math.MinInt32 || idInt > math.MaxInt32 {
+						return fmt.Errorf("ID %d out of int32 range", idInt)
 					}
 					id32 := int32(idInt)
 					webhooks = append(webhooks, openapi.RestWebhook{Id: &id32})

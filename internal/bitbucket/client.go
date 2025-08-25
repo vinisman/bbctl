@@ -29,6 +29,9 @@ func NewClient(ctx context.Context) (*Client, error) {
 
 	cfgOpenAPI := openapi.NewConfiguration()
 	cfgOpenAPI.Servers = openapi.ServerConfigurations{{URL: config.GlobalCfg.BaseURL}}
+	cfgOpenAPI.AddDefaultHeader("User-Agent", "bbctl/1.0")
+	cfgOpenAPI.AddDefaultHeader("X-Content-Type-Options", "nosniff")
+	cfgOpenAPI.AddDefaultHeader("X-Frame-Options", "DENY")
 
 	authCtx := ctx
 	if config.GlobalCfg.Username != "" && config.GlobalCfg.Password != "" {
