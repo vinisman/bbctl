@@ -38,7 +38,8 @@ func GetWebHookCmd() *cobra.Command {
 
 			values, err := client.GetWebhooks(projectKey, slug)
 			if err != nil {
-				return err
+				client.Logger.Error(err.Error())
+				return nil
 			}
 
 			return utils.PrintStructured("webhooks", values, output, "id,name")

@@ -52,7 +52,11 @@ func NewDeleteCmd() *cobra.Command {
 				ProjectKey:     projectKey,
 				RepositorySlug: repositorySlug,
 			}
-			return client.DeleteRepos([]models.ExtendedRepository{ref})
+			err = client.DeleteRepos([]models.ExtendedRepository{ref})
+			if err != nil {
+				client.Logger.Error(err.Error())
+			}
+			return nil
 		},
 	}
 

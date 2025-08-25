@@ -640,28 +640,32 @@ func (c *Client) ForkRepos(repos []models.ExtendedRepository) error {
 	for i := 0; i < maxWorkers; i++ {
 		go func() {
 			for r := range jobsCh {
-				if r.ProjectKey == "" || r.RepositorySlug == "" || r.RestRepository.Project == nil || r.RestRepository.Project.Key == "" {
+				if r.ProjectKey == "" || r.RepositorySlug == "" {
 					resultsCh <- result{
 						forkName:      utils.SafeString(r.RestRepository.Name),
 						sourceProject: r.ProjectKey,
 						sourceSlug:    r.RepositorySlug,
 						forkProject:   "",
-						err:           fmt.Errorf("sourceProject, sourceSlug, and forkRepo.Project.Key are required"),
+						err:           fmt.Errorf("sourceProject, sourceSlug are required"),
 					}
 					continue
 				}
-				createdFork, _, err := c.api.ProjectAPI.ForkRepository(c.authCtx, r.ProjectKey, r.RepositorySlug).
+
+				createdFork, httpResp, err := c.api.ProjectAPI.ForkRepository(c.authCtx, r.ProjectKey, r.RepositorySlug).
 					RestRepository(r.RestRepository).
 					Execute()
-				forkName := "<unknown>"
+				var forkName string
 				if createdFork != nil && createdFork.Name != nil {
 					forkName = *createdFork.Name
+				} else {
+					forkName = utils.SafeString(r.RestRepository.Name)
 				}
+
+				c.logger.Debug("Details", "httpResp", httpResp)
 				resultsCh <- result{
 					forkName:      forkName,
 					sourceProject: r.ProjectKey,
 					sourceSlug:    r.RepositorySlug,
-					forkProject:   r.RestRepository.Project.Key,
 					err:           err,
 				}
 			}

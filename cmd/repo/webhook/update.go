@@ -39,7 +39,6 @@ func UpdateWebHookCmd() *cobra.Command {
 			err = client.UpdateWebhooks(parsed.Repositories)
 			if err != nil {
 				client.Logger.Error(err.Error())
-				return err
 			}
 
 			return nil
