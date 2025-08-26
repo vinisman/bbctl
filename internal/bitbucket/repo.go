@@ -13,26 +13,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// GetRequiredBuilds fetches required build merge checks for a given project and repository
-// func (c *Client) GetRequiredBuilds(projectKey, repoSlug string) ([]openapi.RestRequiredBuildCondition, error) {
-// 	if projectKey == "" || repoSlug == "" {
-// 		return nil, fmt.Errorf("projectKey and repoSlug are required")
-// 	}
-
-// 	resp, _, err := c.api.BuildsAndDeploymentsAPI.
-// 		GetPageOfRequiredBuildsMergeChecks(c.authCtx, projectKey, repoSlug).
-// 		Execute()
-// 	if err != nil {
-// 		return nil, fmt.Errorf("failed to call GetPageOfRequiredBuildsMergeChecks: %w", err)
-// 	}
-
-// 	if resp == nil || resp.Values == nil {
-// 		return nil, fmt.Errorf("empty response from required-builds API")
-// 	}
-
-// 	return resp.Values, nil
-// }
-
 // GetAllReposForProject fetches all repositories for a single project with pagination
 // and optionally fills DefaultBranch and Webhooks for each repository
 func (c *Client) GetAllReposForProject(projectKey string, options models.RepositoryOptions) ([]models.ExtendedRepository, error) {
@@ -74,72 +54,35 @@ func (c *Client) GetAllReposForProject(projectKey string, options models.Reposit
 		start = float32(*resp.NextPageStart)
 	}
 
-	// Parallel fetch DefaultBranch + Webhooks if requested
+	// Parallel enrichment if requested, using a worker pool
 	if len(repos) > 0 {
 		type enrichResult struct {
-			idx int
-			err error
+			idx  int
+			repo models.ExtendedRepository
+			err  error
 		}
-		ch := make(chan enrichResult, len(repos))
+		maxWorkers := config.GlobalMaxWorkers
 
-		for i, r := range repos {
-			i := i
-			r := r
+		jobsCh := make(chan int, len(repos))
+		resultsCh := make(chan enrichResult, len(repos))
+
+		for w := 0; w < maxWorkers; w++ {
 			go func() {
-				var errs []error
-
-				// Default branch
-				if options.DefaultBranch && r.RepositorySlug != "" {
-					b, err := c.GetDefaultBranch(projectKey, r.RepositorySlug)
-
-					if err == nil {
-						repos[i].RestRepository.DefaultBranch = &b
-					} else {
-						errs = append(errs, fmt.Errorf("defaultBranch: %w", err))
-					}
-				}
-
-				if options.Webhooks && r.RepositorySlug != "" {
-					hooks, err := c.GetWebhooks(projectKey, r.RepositorySlug)
-					if err == nil {
-						repos[i].Webhooks = hooks
-					} else {
-						errs = append(errs, fmt.Errorf("webhooks: %w", err))
-					}
-				}
-
-				// Required builds only
-				if options.RequiredBuilds && r.RepositorySlug != "" {
-					rb, err := c.GetRequiredBuilds(projectKey, r.RepositorySlug)
-					if err == nil {
-						repos[i].RequiredBuilds = rb
-					} else {
-						c.logger.Warn("Failed fetching required builds", "project", projectKey, "slug", r.RepositorySlug, "error", err)
-					}
-				}
-				// Get manifest content
-				if options.Manifest && r.RepositorySlug != "" && options.ManifestPath != nil {
-					manifest, err := c.GetManifest(projectKey, r.RepositorySlug, *options.ManifestPath)
-					if err == nil {
-						repos[i].Manifest = manifest
-					} else {
-						c.logger.Debug("Failed fetching manifest data",
-							"project", projectKey,
-							"slug", r.RepositorySlug,
-							"filePath", *options.ManifestPath,
-							"error", err)
-					}
-				}
-				if len(errs) > 0 {
-					ch <- enrichResult{idx: i, err: fmt.Errorf("errors: %v", errs)}
-				} else {
-					ch <- enrichResult{idx: i}
+				for i := range jobsCh {
+					r, err := c.enrichRepository(repos[i], projectKey, options)
+					resultsCh <- enrichResult{idx: i, repo: r, err: err}
 				}
 			}()
 		}
 
+		for i := range repos {
+			jobsCh <- i
+		}
+		close(jobsCh)
+
 		for i := 0; i < len(repos); i++ {
-			res := <-ch
+			res := <-resultsCh
+			repos[res.idx] = res.repo
 			if res.err != nil {
 				c.logger.Warn("Failed enriching repository", "project", projectKey, "error", res.err)
 			}
@@ -156,80 +99,46 @@ func (c *Client) GetReposBySlugs(projectKey string, slugs []string, options mode
 		err  error
 	}
 
+	maxWorkers := config.GlobalMaxWorkers
+
+	jobsCh := make(chan string, len(slugs))
 	resultsCh := make(chan result, len(slugs))
 
-	for _, slug := range slugs {
-		s := slug
-
+	// Worker pool
+	for w := 0; w < maxWorkers; w++ {
 		go func() {
-
-			var r models.ExtendedRepository
-			if options.Repository {
-				resp, _, err := c.api.ProjectAPI.GetRepository(c.authCtx, projectKey, s).Execute()
-				if err != nil {
-					c.logger.Error("Error fetching repository", "project", projectKey, "slug", s, "error", err)
-					resultsCh <- result{err: err}
-					return
-				}
-				r = models.ExtendedRepository{
-					RestRepository: *resp,
-					ProjectKey:     projectKey,
-					RepositorySlug: slug,
-				}
-			} else {
-				r = models.ExtendedRepository{
-					ProjectKey:     projectKey,
-					RepositorySlug: slug,
-				}
-			}
-
-			// Default branch
-			if options.DefaultBranch && r.RepositorySlug != "" {
-				b, err := c.GetDefaultBranch(projectKey, r.RepositorySlug)
-				if err == nil {
-					r.RestRepository.DefaultBranch = &b
+			for slug := range jobsCh {
+				var r models.ExtendedRepository
+				if options.Repository {
+					resp, _, err := c.api.ProjectAPI.GetRepository(c.authCtx, projectKey, slug).Execute()
+					if err != nil {
+						c.logger.Error("Error fetching repository", "project", projectKey, "slug", slug, "error", err)
+						resultsCh <- result{err: err}
+						continue
+					}
+					r = models.ExtendedRepository{
+						RestRepository: *resp,
+						ProjectKey:     projectKey,
+						RepositorySlug: slug,
+					}
 				} else {
-					c.logger.Warn("Failed fetching default branch", "project", projectKey, "slug", s, "error", err)
+					r = models.ExtendedRepository{
+						ProjectKey:     projectKey,
+						RepositorySlug: slug,
+					}
 				}
-			}
 
-			// Webhooks only
-			if options.Webhooks && r.RepositorySlug != "" {
-				hooks, err := c.GetWebhooks(projectKey, r.RepositorySlug)
-				if err == nil {
-					r.Webhooks = hooks
-				} else {
-					c.logger.Warn("Failed fetching webhooks", "project", projectKey, "slug", r.RepositorySlug, "error", err)
-				}
+				enriched, err := c.enrichRepository(r, projectKey, options)
+				resultsCh <- result{repo: enriched, err: err}
 			}
-
-			// Required builds only
-			if options.RequiredBuilds && r.RepositorySlug != "" {
-				rb, err := c.GetRequiredBuilds(projectKey, r.RepositorySlug)
-				if err == nil {
-					r.RequiredBuilds = rb
-				} else {
-					c.logger.Warn("Failed fetching required builds", "project", projectKey, "slug", r.RepositorySlug, "error", err)
-				}
-			}
-
-			// Get manifest content
-			if options.Manifest && r.RepositorySlug != "" && options.ManifestPath != nil {
-				manifest, err := c.GetManifest(projectKey, r.RepositorySlug, *options.ManifestPath)
-				if err == nil {
-					r.Manifest = manifest
-				} else {
-					c.logger.Debug("Failed fetching manifest data",
-						"project", projectKey,
-						"slug", r.RepositorySlug,
-						"filePath", *options.ManifestPath,
-						"error", err)
-				}
-			}
-
-			resultsCh <- result{repo: r}
 		}()
 	}
+
+	// Send all slugs as jobs
+	for _, slug := range slugs {
+		jobsCh <- slug
+	}
+	close(jobsCh)
 
 	var repos []models.ExtendedRepository
 	var errorsCount int
@@ -261,9 +170,6 @@ func (c *Client) GetAllRepos(projectKeys []string, options models.RepositoryOpti
 	jobsCh := make(chan string, len(projectKeys))
 
 	maxWorkers := config.GlobalMaxWorkers
-	if maxWorkers <= 0 {
-		maxWorkers = 5
-	}
 
 	// Worker pool
 	for i := 0; i < maxWorkers; i++ {
@@ -275,58 +181,8 @@ func (c *Client) GetAllRepos(projectKeys []string, options models.RepositoryOpti
 					resultsCh <- result{err: err}
 					continue
 				}
-
-				var extRepos []models.ExtendedRepository
-				for _, r := range repos {
-					extRepo := r
-
-					// Default branch (уже обработан в GetAllReposForProject, но оставляем возможность дополнить)
-					if options.DefaultBranch && r.RestRepository.Slug != nil && r.RestRepository.DefaultBranch == nil {
-						b, err := c.GetDefaultBranch(pk, *r.RestRepository.Slug)
-						if err == nil {
-							extRepo.RestRepository.DefaultBranch = &b
-						} else {
-							c.logger.Warn("Failed fetching default branch", "project", pk, "slug", *r.RestRepository.Slug, "error", err)
-						}
-					}
-
-					// Webhooks only if output != plain
-					if options.Webhooks && r.RestRepository.Slug != nil {
-						hooks, err := c.GetWebhooks(pk, *r.RestRepository.Slug)
-						if err == nil {
-							extRepo.Webhooks = hooks
-						} else {
-							c.logger.Warn("Failed fetching webhooks", "project", pk, "slug", *r.RestRepository.Slug, "error", err)
-						}
-					}
-
-					// Required builds only
-					if options.RequiredBuilds && r.RestRepository.Slug != nil {
-						rb, err := c.GetRequiredBuilds(pk, *r.RestRepository.Slug)
-						if err == nil {
-							extRepo.RequiredBuilds = rb
-						} else {
-							c.logger.Warn("Failed fetching required builds", "project", pk, "slug", *r.RestRepository.Slug, "error", err)
-						}
-					}
-
-					// Get manifest content
-					if options.Manifest && r.RestRepository.Slug != nil && options.ManifestPath != nil {
-						manifest, err := c.GetManifest(pk, *r.RestRepository.Slug, *options.ManifestPath)
-						if err == nil {
-							extRepo.Manifest = manifest // <-- исправлено
-						} else {
-							c.logger.Debug("Failed fetching manifest data",
-								"project", pk,
-								"slug", *r.RestRepository.Slug,
-								"filePath", *options.ManifestPath,
-								"error", err)
-						}
-					}
-					extRepos = append(extRepos, extRepo)
-				}
-
-				resultsCh <- result{repos: extRepos}
+				// All enrichment already performed in GetAllReposForProject, just append.
+				resultsCh <- result{repos: repos}
 			}
 		}()
 	}
@@ -382,7 +238,6 @@ func (c *Client) GetDefaultBranch(projectKey, repoSlug string) (string, error) {
 }
 
 func (c *Client) GetManifest(projectKey, repoSlug, filePath string) (map[string]interface{}, error) {
-
 	if projectKey == "" || repoSlug == "" || filePath == "" {
 		return nil, fmt.Errorf("projectKey, repoSlug and filePath must be provided")
 	}
@@ -401,7 +256,12 @@ func (c *Client) GetManifest(projectKey, repoSlug, filePath string) (map[string]
 		req.Header.Set(k, v)
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	// Ensure httpClient is set and has a reasonable timeout
+	if c.api.GetConfig().HTTPClient == nil {
+		c.api.GetConfig().HTTPClient = &http.Client{Timeout: 15 * 1e9} // 15 seconds
+	}
+
+	resp, err := c.api.GetConfig().HTTPClient.Do(req)
 	if err != nil {
 		c.logger.Error("Failed to fetch file",
 			"projectKey", projectKey,
@@ -451,9 +311,6 @@ func (c *Client) DeleteRepos(refs []models.ExtendedRepository) error {
 	jobsCh := make(chan models.ExtendedRepository, len(refs))
 
 	maxWorkers := config.GlobalMaxWorkers
-	if maxWorkers <= 0 {
-		maxWorkers = 5
-	}
 
 	// Workers
 	for i := 0; i < maxWorkers; i++ {
@@ -510,9 +367,6 @@ func (c *Client) CreateRepos(repos []models.ExtendedRepository) error {
 	jobsCh := make(chan models.ExtendedRepository, len(repos))
 
 	maxWorkers := config.GlobalMaxWorkers
-	if maxWorkers <= 0 {
-		maxWorkers = 5
-	}
 
 	// Workers
 	for i := 0; i < maxWorkers; i++ {
@@ -570,9 +424,6 @@ func (c *Client) UpdateRepos(repos []models.ExtendedRepository) error {
 	jobsCh := make(chan models.ExtendedRepository, len(repos))
 
 	maxWorkers := config.GlobalMaxWorkers
-	if maxWorkers <= 0 {
-		maxWorkers = 5
-	}
 
 	// Workers
 	for i := 0; i < maxWorkers; i++ {
@@ -634,9 +485,6 @@ func (c *Client) ForkRepos(repos []models.ExtendedRepository) error {
 	jobsCh := make(chan models.ExtendedRepository, len(repos))
 
 	maxWorkers := config.GlobalMaxWorkers
-	if maxWorkers <= 0 {
-		maxWorkers = 5
-	}
 
 	// Worker pool
 	for i := 0; i < maxWorkers; i++ {
@@ -704,4 +552,53 @@ func (c *Client) ForkRepos(repos []models.ExtendedRepository) error {
 		return fmt.Errorf("failed to fork %d out of %d repositories", errorsCount, len(repos))
 	}
 	return nil
+}
+
+// enrichRepository enriches the given ExtendedRepository with additional data according to options.
+func (c *Client) enrichRepository(r models.ExtendedRepository, projectKey string, options models.RepositoryOptions) (models.ExtendedRepository, error) {
+	var errs []error
+	// Default branch
+	if options.DefaultBranch && r.RepositorySlug != "" {
+		b, err := c.GetDefaultBranch(projectKey, r.RepositorySlug)
+		if err == nil {
+			r.RestRepository.DefaultBranch = &b
+		} else {
+			errs = append(errs, fmt.Errorf("defaultBranch: %w", err))
+		}
+	}
+	// Webhooks
+	if options.Webhooks && r.RepositorySlug != "" {
+		hooks, err := c.GetWebhooks(projectKey, r.RepositorySlug)
+		if err == nil {
+			r.Webhooks = hooks
+		} else {
+			errs = append(errs, fmt.Errorf("webhooks: %w", err))
+		}
+	}
+	// Required builds only
+	if options.RequiredBuilds && r.RepositorySlug != "" {
+		rb, err := c.GetRequiredBuilds(projectKey, r.RepositorySlug)
+		if err == nil {
+			r.RequiredBuilds = rb
+		} else {
+			c.logger.Warn("Failed fetching required builds", "project", projectKey, "slug", r.RepositorySlug, "error", err)
+		}
+	}
+	// Get manifest content
+	if options.Manifest && r.RepositorySlug != "" && options.ManifestPath != nil {
+		manifest, err := c.GetManifest(projectKey, r.RepositorySlug, *options.ManifestPath)
+		if err == nil {
+			r.Manifest = manifest
+		} else {
+			c.logger.Debug("Failed fetching manifest data",
+				"project", projectKey,
+				"slug", r.RepositorySlug,
+				"filePath", *options.ManifestPath,
+				"error", err)
+		}
+	}
+	if len(errs) > 0 {
+		return r, fmt.Errorf("enrichment errors: %v", errs)
+	}
+	return r, nil
 }

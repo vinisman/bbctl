@@ -9,17 +9,18 @@ import (
 
 // Config holds global CLI configuration
 type Config struct {
-	BaseURL  string
-	Token    string
-	Username string
-	Password string
-	PageSize int
+	BaseURL          string
+	Token            string
+	Username         string
+	Password         string
+	PageSize         int
+	GlobalMaxWorkers int
 }
 
 var (
 	GlobalCfg        *Config
 	GlobalLogger     *slog.Logger
-	GlobalMaxWorkers = 10
+	GlobalMaxWorkers int
 )
 
 // LoadConfig loads configuration from environment variables
@@ -30,6 +31,14 @@ func LoadConfig() (*Config, error) {
 			pageSize = ps
 		}
 	}
+
+	maxWorkers := 5
+	if val := os.Getenv("BITBUCKET_MAX_WORKERS"); val != "" {
+		if mw, err := strconv.Atoi(val); err == nil {
+			maxWorkers = mw
+		}
+	}
+	GlobalMaxWorkers = maxWorkers
 
 	baseURL := os.Getenv("BITBUCKET_BASE_URL")
 	token := os.Getenv("BITBUCKET_TOKEN")
@@ -44,11 +53,15 @@ func LoadConfig() (*Config, error) {
 		return nil, fmt.Errorf("either BITBUCKET_TOKEN or BITBUCKET_USERNAME + BITBUCKET_PASSWORD must be set")
 	}
 
-	return &Config{
-		BaseURL:  baseURL,
-		Token:    token,
-		Username: username,
-		Password: password,
-		PageSize: pageSize,
-	}, nil
+	cfg := &Config{
+		BaseURL:          baseURL,
+		Token:            token,
+		Username:         username,
+		Password:         password,
+		PageSize:         pageSize,
+		GlobalMaxWorkers: maxWorkers,
+	}
+	GlobalCfg = cfg
+
+	return cfg, nil
 }
