@@ -21,6 +21,10 @@ var (
 	flagUsername string
 	flagPassword string
 	flagPageSize int
+
+	// Version and Commit are set at build time via -ldflags
+	Version string
+	Commit  string
 )
 
 func NewRootCmd() *cobra.Command {
@@ -85,7 +89,22 @@ func NewRootCmd() *cobra.Command {
 	cmd.AddCommand(
 		repo.NewRepoCmd(),
 		project.NewProjectCmd(),
+		newVersionCmd(),
 	)
 
 	return cmd
+}
+
+func newVersionCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "version",
+		Short: "Print the version number of bbctl",
+		Run: func(cmd *cobra.Command, args []string) {
+			if Version != "" && Commit != "" {
+				fmt.Printf("bbctl version: %s, commit: %s\n", Version, Commit)
+			} else {
+				fmt.Println("bbctl version: unknown")
+			}
+		},
+	}
 }
