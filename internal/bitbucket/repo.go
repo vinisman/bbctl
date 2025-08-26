@@ -91,6 +91,7 @@ func (c *Client) GetAllReposForProject(projectKey string, options models.Reposit
 				// Default branch
 				if options.DefaultBranch && r.RepositorySlug != "" {
 					b, err := c.GetDefaultBranch(projectKey, r.RepositorySlug)
+
 					if err == nil {
 						repos[i].RestRepository.DefaultBranch = &b
 					} else {
@@ -365,6 +366,7 @@ func (c *Client) GetDefaultBranch(projectKey, repoSlug string) (string, error) {
 	resp, _, err := c.api.ProjectAPI.
 		GetDefaultBranch2(c.authCtx, projectKey, repoSlug).
 		Execute()
+
 	if err != nil {
 		c.logger.Error("Failed to get default branch",
 			"projectKey", projectKey,

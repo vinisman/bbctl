@@ -126,7 +126,7 @@ func printPlain(data interface{}, columns string) error {
 		return fmt.Errorf("plain output requires a slice, got %T", data)
 	}
 
-	cols := ParseColumns(columns)
+	cols := ParseColumnsToLower(columns)
 	if len(cols) == 0 {
 		cols = []string{"Name"} // fallback
 	}
