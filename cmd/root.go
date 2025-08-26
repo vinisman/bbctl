@@ -16,11 +16,12 @@ var (
 	debug bool
 
 	// Global flags for authentication and URL
-	flagURL      string
-	flagToken    string
-	flagUsername string
-	flagPassword string
-	flagPageSize int
+	flagURL        string
+	flagToken      string
+	flagUsername   string
+	flagPassword   string
+	flagPageSize   int
+	flagMaxWorkers int
 
 	// Version and Commit are set at build time via -ldflags
 	Version string
@@ -60,6 +61,10 @@ func NewRootCmd() *cobra.Command {
 				c.PageSize = flagPageSize
 			}
 
+			if flagMaxWorkers > 0 {
+				config.GlobalMaxWorkers = flagMaxWorkers
+			}
+
 			// Validate authentication
 			if c.Token == "" && (c.Username == "" || c.Password == "") {
 				return fmt.Errorf("either token or username/password must be provided")
@@ -84,6 +89,7 @@ func NewRootCmd() *cobra.Command {
 	cmd.PersistentFlags().StringVarP(&flagUsername, "username", "u", "", "Bitbucket username (overrides BITBUCKET_USERNAME)")
 	cmd.PersistentFlags().StringVarP(&flagPassword, "password", "p", "", "Bitbucket password (overrides BITBUCKET_PASSWORD)")
 	cmd.PersistentFlags().IntVar(&flagPageSize, "page-size", 0, "Page size for API requests (overrides BITBUCKET_PAGE_SIZE, default 50)")
+	cmd.PersistentFlags().IntVar(&flagMaxWorkers, "max-workers", 0, "Maximum number of concurrent workers (overrides BITBUCKET_MAX_WORKERS, default 5)")
 
 	// Add subcommands
 	cmd.AddCommand(

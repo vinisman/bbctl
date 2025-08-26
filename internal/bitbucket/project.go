@@ -39,9 +39,6 @@ func GetAllProjects(c *Client) ([]openapi.RestProject, error) {
 // GetProjects fetches specific projects by keys in parallel
 func (c *Client) GetProjects(keys []string) ([]openapi.RestProject, error) {
 	maxWorkers := config.GlobalMaxWorkers
-	if maxWorkers <= 0 {
-		maxWorkers = 5
-	}
 
 	type job struct {
 		key string
@@ -101,9 +98,6 @@ func (c *Client) DeleteProjects(keys []string) error {
 	}
 
 	maxWorkers := config.GlobalMaxWorkers
-	if maxWorkers <= 0 {
-		maxWorkers = 5
-	}
 
 	jobsCh := make(chan string, len(keys))
 	resultsCh := make(chan result, len(keys))
@@ -154,9 +148,6 @@ func (c *Client) CreateProjects(projects []openapi.RestProject) error {
 	}
 
 	maxWorkers := config.GlobalMaxWorkers
-	if maxWorkers <= 0 {
-		maxWorkers = 5
-	}
 
 	jobsCh := make(chan openapi.RestProject, len(projects))
 	resultsCh := make(chan result, len(projects))
@@ -210,9 +201,6 @@ func (c *Client) UpdateProjects(projects []openapi.RestProject) error {
 	}
 
 	maxWorkers := config.GlobalMaxWorkers
-	if maxWorkers <= 0 {
-		maxWorkers = 5
-	}
 
 	jobsCh := make(chan openapi.RestProject, len(projects))
 	resultsCh := make(chan result, len(projects))

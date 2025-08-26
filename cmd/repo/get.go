@@ -59,8 +59,6 @@ Only one of these options should be used at a time.`,
 			options := models.RepositoryOptions{}
 
 			if showDetails != "" && output != "plain" {
-
-				fmt.Println("111")
 				// enable only the options specified in showDetails
 				for _, opt := range utils.ParseColumnsToLower(showDetails) {
 					switch opt {
