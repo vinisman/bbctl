@@ -58,7 +58,7 @@ You must specify exactly one of the following options:
 					return nil
 				}
 			case key != "":
-				projects, err = client.GetProjects(utils.ParseColumns(key))
+				projects, err = client.GetProjects(utils.ParseColumnsToLower(key))
 				if err != nil {
 					client.Logger.Error(err.Error())
 					return nil

@@ -59,12 +59,14 @@ Only one of these options should be used at a time.`,
 			options := models.RepositoryOptions{}
 
 			if showDetails != "" && output != "plain" {
+
+				fmt.Println("111")
 				// enable only the options specified in showDetails
-				for _, opt := range utils.ParseColumns(showDetails) {
+				for _, opt := range utils.ParseColumnsToLower(showDetails) {
 					switch opt {
 					case "repository":
 						options.Repository = true
-					case "defaultBranch":
+					case "defaultbranch":
 						options.DefaultBranch = true
 					case "webhooks":
 						options.Webhooks = true
@@ -105,11 +107,11 @@ Only one of these options should be used at a time.`,
 					repos = append(repos, r...)
 				}
 			} else {
-				projects := utils.ParseColumns(projectKey)
-				slugList := utils.ParseColumns(repositorySlug)
+				projects := utils.ParseColumnsToLower(projectKey)
+				slugList := utils.ParseColumnsToLower(repositorySlug)
 
 				if columns != "" {
-					cols = utils.ParseColumns(columns)
+					cols = utils.ParseColumnsToLower(columns)
 				} else {
 					// default columns for repositories
 					cols = []string{"Id", "Name", "Slug", "Project"}
@@ -166,10 +168,9 @@ Only one of these options should be used at a time.`,
 	cmd.Flags().StringVar(&showDetails, "show-details", "repository", `Comma-separated list of options to include in YAML/JSON output
 	Supported:
 	  repository
-	  webhooks
-	  defaultbranch
-	  webhooks
+	  defaultBranch
 	  manifest
+	  webhooks
 	  required-builds
 	`)
 	cmd.Flags().StringVarP(&inputFile, "input", "i", "", "Path to input YAML file containing repositories")

@@ -31,7 +31,7 @@ func Int32PtrToString(v *int32) string {
 	return fmt.Sprintf("%d", *v)
 }
 
-func ParseColumns(columns string) []string {
+func ParseColumnsToLower(columns string) []string {
 	if columns == "" {
 		return nil
 	}
@@ -39,7 +39,7 @@ func ParseColumns(columns string) []string {
 	out := make([]string, 0, len(parts))
 	for _, p := range parts {
 		if s := strings.TrimSpace(p); s != "" {
-			out = append(out, s)
+			out = append(out, strings.ToLower(s))
 		}
 	}
 	return out
