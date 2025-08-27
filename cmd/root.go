@@ -33,6 +33,9 @@ func NewRootCmd() *cobra.Command {
 		Use:   "bbctl",
 		Short: "Bitbucket Data Center CLI",
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			if cmd.Name() == "version" {
+				return nil
+			}
 
 			// Load environment variables from .env file
 			_ = godotenv.Load()
@@ -95,13 +98,13 @@ func NewRootCmd() *cobra.Command {
 	cmd.AddCommand(
 		repo.NewRepoCmd(),
 		project.NewProjectCmd(),
-		newVersionCmd(),
+		versionCmd(),
 	)
 
 	return cmd
 }
 
-func newVersionCmd() *cobra.Command {
+func versionCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
 		Short: "Print the version number of bbctl",

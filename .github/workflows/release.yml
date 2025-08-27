@@ -31,7 +31,7 @@ jobs:
       - name: Build binary
         id: build
         run: |
-          BIN=bbctl-${{ matrix.goos }}-${{ matrix.goarch }}
+          BIN=bbctl-${GITHUB_REF_NAME}-${{ matrix.goos }}-${{ matrix.goarch }}
           [[ "${{ matrix.goos }}" == "windows" ]] && BIN=${BIN}.exe
           echo "BIN=$BIN" >> "$GITHUB_ENV"
           GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -ldflags="-s -w -X 'github.com/vinisman/bbctl/cmd.Version=${GITHUB_REF_NAME}' -X 'github.com/vinisman/bbctl/cmd.Commit=${GITHUB_SHA}'" -o $BIN
@@ -69,7 +69,7 @@ jobs:
 
       - name: Build binary
         run: |
-          BIN=bbctl-${{ matrix.goos }}-${{ matrix.goarch }}
+          BIN=bbctl-${GITHUB_REF_NAME}-${{ matrix.goos }}-${{ matrix.goarch }}
           [[ "${{ matrix.goos }}" == "windows" ]] && BIN=${BIN}.exe
           GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -ldflags="-s -w -X 'github.com/vinisman/bbctl/cmd.Version=${GITHUB_REF_NAME}' -X 'github.com/vinisman/bbctl/cmd.Commit=${GITHUB_SHA}'" -o $BIN
           ls -l $BIN
