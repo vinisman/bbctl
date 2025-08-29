@@ -49,9 +49,15 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Generate release notes from feature/* and bugfix/* branches
-          git fetch --all
-          git log $(git describe --tags --abbrev=0 HEAD^1)..HEAD --branches='feature/*' --branches='bugfix/*' --pretty=format:'- %s (%an)' > release_notes.md
+          git fetch --prune --unshallow --tags || true
+          
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^1 2>/dev/null || echo "")
+          if [ -z "$PREV_TAG" ]; then
+            # First release or no previous tag, include all commits
+            git log --branches='feature/*' --branches='bugfix/*' --pretty=format:'- %s (%an)' > release_notes.md
+          else
+            git log $PREV_TAG..HEAD --branches='feature/*' --branches='bugfix/*' --pretty=format:'- %s (%an)' > release_notes.md
+          fi
           
           gh release create "${GITHUB_REF_NAME}" release/*.tar.gz \
             --notes-file release_notes.md \
