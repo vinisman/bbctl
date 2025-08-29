@@ -49,16 +49,22 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          git fetch --prune --unshallow --tags || true
-          
+          # Fetch all branches and tags with full history
+          git fetch --prune --unshallow --tags --all --force --depth=0 || true
+
           PREV_TAG=$(git describe --tags --abbrev=0 HEAD^1 2>/dev/null || echo "")
           if [ -z "$PREV_TAG" ]; then
-            # First release or no previous tag, include all commits
-            git log --branches='feature/*' --branches='bugfix/*' --pretty=format:'- %s (%an)' > release_notes.md
+            # First release or no previous tag, include all commits on feature/* and bugfix/* branches
+            COMMITS=$(git log --branches='feature/*' --branches='bugfix/*' --pretty=format:'- %s (%an)')
           else
-            git log $PREV_TAG..HEAD --branches='feature/*' --branches='bugfix/*' --pretty=format:'- %s (%an)' > release_notes.md
+            COMMITS=$(git log $PREV_TAG..HEAD --branches='feature/*' --branches='bugfix/*' --pretty=format:'- %s (%an)')
           fi
-          
+          if [ -z "$COMMITS" ]; then
+            echo "No feature or bugfix commits since previous release" > release_notes.md
+          else
+            echo "$COMMITS" > release_notes.md
+          fi
+
           gh release create "${GITHUB_REF_NAME}" release/*.tar.gz \
             --notes-file release_notes.md \
             --repo "${GITHUB_REPOSITORY}"
