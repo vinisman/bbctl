@@ -16,7 +16,7 @@ func NewCreateCmd() *cobra.Command {
 		key         string
 		name        string
 		description string
-		file        string
+		input       string
 	)
 
 	cmd := &cobra.Command{
@@ -28,7 +28,7 @@ Note: If you encounter a 401 Unauthorized error, please use your username and pa
 This is required for older Bitbucket versions that do not support token-based operations.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Validate input
-			if (key != "" && file != "") || (key == "" && file == "") {
+			if (key != "" && input != "") || (key == "" && input == "") {
 				return fmt.Errorf("either --key and --name or --input must be specified, but not both")
 			}
 
@@ -53,14 +53,14 @@ This is required for older Bitbucket versions that do not support token-based op
 			}
 
 			// Case 2: create from YAML file
-			if file != "" {
+			if input != "" {
 				var parsed models.ProjectYaml
-				if err := utils.ParseYAMLFile(file, &parsed); err != nil {
-					return fmt.Errorf("failed to parse YAML file %s: %w", file, err)
+				if err := utils.ParseYAMLFile(input, &parsed); err != nil {
+					return fmt.Errorf("failed to parse YAML file %s: %w", input, err)
 				}
 
 				if len(parsed.Projects) == 0 {
-					return fmt.Errorf("no projects found in file %s", file)
+					return fmt.Errorf("no projects found in file %s", input)
 				}
 
 				projects = parsed.Projects
@@ -80,7 +80,7 @@ This is required for older Bitbucket versions that do not support token-based op
 	cmd.Flags().StringVarP(&key, "key", "k", "", "Project key (required if --input is not specified)")
 	cmd.Flags().StringVar(&name, "name", "", "Project name")
 	cmd.Flags().StringVar(&description, "description", "", "Project description")
-	cmd.Flags().StringVarP(&file, "input", "i", "", `Path to YAML file with projects to create.
+	cmd.Flags().StringVarP(&input, "input", "i", "", `Path to YAML file with projects to create, or '-' to read from stdin.
 Example file content:
 projects:
   - key: Project1
