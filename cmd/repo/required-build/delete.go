@@ -15,7 +15,7 @@ import (
 
 // DeleteWebHookCmd returns a cobra command to delete webhooks from a YAML file
 func DeleteRequiredBuildCmd() *cobra.Command {
-	var input string
+	var file string
 	var project string
 	var repo string
 	var ids string
@@ -24,24 +24,25 @@ func DeleteRequiredBuildCmd() *cobra.Command {
 		Use:   "delete",
 		Short: "Delete required-builds from YAML file by Id or by project, repo and ids",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if input == "" && (project == "" || repo == "" || ids == "") {
+			if file == "" && (project == "" || repo == "" || ids == "") {
 				return fmt.Errorf("either --input or --project, --repo and --ids must be provided")
 			}
 
-			if input != "" && (project != "" || repo != "" || ids != "") {
+			if file != "" && (project != "" || repo != "" || ids != "") {
 				return fmt.Errorf("cannot use --input together with --project, --repo or --ids")
 			}
 
 			var repositories []models.ExtendedRepository
 
-			if input != "" {
+			if file != "" {
 				var parsed models.RepositoryYaml
-				if err := utils.ParseYAMLFile(input, &parsed); err != nil {
+
+				if err := utils.ParseYAMLFile(file, &parsed); err != nil {
 					return fmt.Errorf("failed to parse YAML file: %w", err)
 				}
 
 				if len(parsed.Repositories) == 0 {
-					return fmt.Errorf("no repositories found in file %s", input)
+					return fmt.Errorf("no repositories found in file %s", file)
 				}
 
 				repositories = parsed.Repositories
@@ -86,8 +87,7 @@ func DeleteRequiredBuildCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&input, "input", "i", "", `Path to YAML file with repositories and webhooks to delete.
-Passing '-' will read the YAML from stdin.
+	cmd.Flags().StringVarP(&file, "input", "i", "", `Path to YAML file with repositories and webhooks to delete
 Example:
 repositories:
   - projectKey: project_1

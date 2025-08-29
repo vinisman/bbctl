@@ -11,23 +11,23 @@ import (
 )
 
 func UpdateRequiredBuildCmd() *cobra.Command {
-	var input string
+	var file string
 
 	cmd := &cobra.Command{
 		Use:   "update",
 		Short: "Update required-builds from YAML file by Id",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if input == "" {
+			if file == "" {
 				return fmt.Errorf("--input is required")
 			}
 
 			var parsed models.RepositoryYaml
-			if err := utils.ParseYAMLFile(input, &parsed); err != nil {
+			if err := utils.ParseYAMLFile(file, &parsed); err != nil {
 				return fmt.Errorf("failed to parse YAML file: %w", err)
 			}
 
 			if len(parsed.Repositories) == 0 {
-				return fmt.Errorf("no repositories found in file %s", input)
+				return fmt.Errorf("no repositories found in file %s", file)
 			}
 
 			client, err := bitbucket.NewClient(context.Background())
@@ -43,7 +43,7 @@ func UpdateRequiredBuildCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&input, "input", "i", "", `Path to YAML file with webhooks to update. Use '-' to read from stdin.
+	cmd.Flags().StringVarP(&file, "input", "i", "", `Path to YAML file with webhooks to update
 Example:
 repositories:
   - projectKey: project_1

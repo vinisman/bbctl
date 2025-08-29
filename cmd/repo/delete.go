@@ -14,7 +14,7 @@ import (
 func NewDeleteCmd() *cobra.Command {
 	var (
 		repositorySlug string
-		input          string
+		file           string
 	)
 
 	cmd := &cobra.Command{
@@ -23,7 +23,7 @@ func NewDeleteCmd() *cobra.Command {
 		Long:  `Delete one or more repositories. You must specify either --repositorySlug in the format <projectKey>/<repositorySlug> for a single repository, or --input for a YAML file with multiple repositories.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Validate input: either single repo or YAML file
-			if (input != "" && repositorySlug != "") || (input == "" && repositorySlug == "") {
+			if (file != "" && repositorySlug != "") || (file == "" && repositorySlug == "") {
 				return fmt.Errorf("either --repositorySlug or --input must be specified, but not both")
 			}
 
@@ -33,14 +33,14 @@ func NewDeleteCmd() *cobra.Command {
 			}
 
 			// Case 1: delete from YAML file
-			if input != "" {
+			if file != "" {
 				var parsed models.RepositoryYaml
 
-				if err := utils.ParseYAMLFile(input, &parsed); err != nil {
+				if err := utils.ParseYAMLFile(file, &parsed); err != nil {
 					return err
 				}
 				if len(parsed.Repositories) == 0 {
-					return fmt.Errorf("no repositories found in %s", input)
+					return fmt.Errorf("no repositories found in %s", file)
 				}
 				return client.DeleteRepos(parsed.Repositories)
 			}
@@ -67,7 +67,7 @@ func NewDeleteCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&repositorySlug, "repositorySlug", "s", "", "Identifier of the current repository in format <projectKey>/<repositorySlug> (required if --input not used)")
-	cmd.Flags().StringVarP(&input, "input", "i", "", `Path to YAML file with repositories to delete, or '-' to read from stdin.
+	cmd.Flags().StringVarP(&file, "input", "i", "", `Path to YAML file with repositories to delete.
 Example file content:
 repositories:
   - projectKey: PRJ1

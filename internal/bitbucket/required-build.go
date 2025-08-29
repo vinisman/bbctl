@@ -265,62 +265,18 @@ func toSetRequest(cond openapi.RestRequiredBuildCondition) openapi.RestRequiredB
 	return req
 }
 
-func (c *Client) GetRequiredBuilds(repos []models.ExtendedRepository) ([]models.ExtendedRepository, error) {
-	maxWorkers := config.GlobalMaxWorkers
-
-	type job struct {
-		index int
-		repo  models.ExtendedRepository
+func (c *Client) GetRequiredBuilds(projectKey, repoSlug string) ([]openapi.RestRequiredBuildCondition, error) {
+	resp, httpResp, err := c.api.BuildsAndDeploymentsAPI.
+		GetPageOfRequiredBuildsMergeChecks(c.authCtx, projectKey, repoSlug).
+		Execute()
+	if err != nil {
+		c.logger.Debug("Failed fetching required builds", "httpResp", httpResp, "error", err)
+		return nil, fmt.Errorf("failed to get required builds for %s/%s: %w", projectKey, repoSlug, err)
 	}
 
-	jobs := make(chan job, len(repos))
-	errCh := make(chan error, len(repos))
-
-	var wg sync.WaitGroup
-
-	worker := func() {
-		defer wg.Done()
-		for j := range jobs {
-			resp, httpResp, err := c.api.BuildsAndDeploymentsAPI.
-				GetPageOfRequiredBuildsMergeChecks(c.authCtx, j.repo.ProjectKey, j.repo.RepositorySlug).
-				Execute()
-			if err != nil {
-				c.logger.Debug("Failed fetching required builds", "httpResp", httpResp, "error", err)
-				errCh <- fmt.Errorf("failed to get required builds for %s/%s: %w", j.repo.ProjectKey, j.repo.RepositorySlug, err)
-				continue
-			}
-
-			if resp == nil || resp.Values == nil {
-				j.repo.RequiredBuilds = nil
-			} else {
-				j.repo.RequiredBuilds = resp.Values
-			}
-
-			// Update the repos slice with the updated repo (with RequiredBuilds)
-			repos[j.index] = j.repo
-		}
+	if resp == nil || resp.Values == nil {
+		return nil, nil
 	}
 
-	wg.Add(maxWorkers)
-	for i := 0; i < maxWorkers; i++ {
-		go worker()
-	}
-
-	for i, r := range repos {
-		jobs <- job{index: i, repo: r}
-	}
-	close(jobs)
-
-	wg.Wait()
-	close(errCh)
-
-	var errs []string
-	for e := range errCh {
-		errs = append(errs, e.Error())
-	}
-	if len(errs) > 0 {
-		return nil, fmt.Errorf("errors occurred fetching required builds: %s", strings.Join(errs, "; "))
-	}
-
-	return repos, nil
+	return resp.Values, nil
 }

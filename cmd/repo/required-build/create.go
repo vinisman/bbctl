@@ -11,7 +11,7 @@ import (
 )
 
 func CreateRequiredBuildCmd() *cobra.Command {
-	var input string
+	var file string
 
 	cmd := &cobra.Command{
 		Use:   "create",
@@ -21,17 +21,17 @@ func CreateRequiredBuildCmd() *cobra.Command {
 Be careful: Bitbucket allows required-builds with duplicate names, 
 so make sure to use unique names to avoid confusion or accidental overwrites.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if input == "" {
+			if file == "" {
 				return fmt.Errorf("--input is required")
 			}
 
 			var parsed models.RepositoryYaml
-			if err := utils.ParseYAMLFile(input, &parsed); err != nil {
+			if err := utils.ParseYAMLFile(file, &parsed); err != nil {
 				return fmt.Errorf("failed to parse YAML file: %w", err)
 			}
 
 			if len(parsed.Repositories) == 0 {
-				return fmt.Errorf("no required-builds found in file %s", input)
+				return fmt.Errorf("no required-builds found in file %s", file)
 			}
 
 			hasRequiredBuilds := false
@@ -42,7 +42,7 @@ so make sure to use unique names to avoid confusion or accidental overwrites.`,
 				}
 			}
 			if !hasRequiredBuilds {
-				return fmt.Errorf("no required-builds defined in file %s", input)
+				return fmt.Errorf("no required-builds defined in file %s", file)
 			}
 
 			client, err := bitbucket.NewClient(context.Background())
@@ -60,8 +60,7 @@ so make sure to use unique names to avoid confusion or accidental overwrites.`,
 		},
 	}
 
-	cmd.Flags().StringVarP(&input, "input", "i", "", `Path to YAML file with webhooks to create
-Use "-" to read the YAML from stdin
+	cmd.Flags().StringVarP(&file, "input", "i", "", `Path to YAML file with webhooks to create
 Example:
 repositories:
   - projectKey: project_1
