@@ -18,7 +18,7 @@ func NewUpdateCmd() *cobra.Command {
 		name           string
 		description    string
 		defaultBranch  string
-		input          string
+		file           string
 		newProjectKey  string
 	)
 
@@ -29,7 +29,7 @@ func NewUpdateCmd() *cobra.Command {
 or multiple repositories defined in a YAML file with --input.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Validate input: either single repo or file
-			if (input != "" && repositorySlug != "") || (input == "" && repositorySlug == "") {
+			if (file != "" && repositorySlug != "") || (file == "" && repositorySlug == "") {
 				return fmt.Errorf("either --input or --repositorySlug must be specified, but not both")
 			}
 
@@ -39,11 +39,11 @@ or multiple repositories defined in a YAML file with --input.`,
 			}
 
 			// Case 1: update from YAML file
-			if input != "" {
+			if file != "" {
 				var parsed struct {
 					Repositories []models.ExtendedRepository `yaml:"repositories"`
 				}
-				if err := utils.ParseYAMLFile(input, &parsed); err != nil {
+				if err := utils.ParseYAMLFile(file, &parsed); err != nil {
 					return err
 				}
 				return client.UpdateRepos(parsed.Repositories)
@@ -85,7 +85,7 @@ or multiple repositories defined in a YAML file with --input.`,
 	cmd.Flags().StringVar(&name, "name", "", "Repository name (optional)")
 	cmd.Flags().StringVar(&description, "desc", "", "Repository description (optional)")
 	cmd.Flags().StringVar(&defaultBranch, "default-branch", "", "Default branch name (optional)")
-	cmd.Flags().StringVarP(&input, "input", "i", "", `Path to YAML file with repositories to update, or '-' to read from stdin.
+	cmd.Flags().StringVarP(&file, "input", "i", "", `Path to YAML file with repositories to update.
 If specified, multiple repositories can be updated in a single operation.
 The file must contain a list of repositories with at least the "projectKey" and "repositorySlug" fields.
 Other fields are optional and will be updated only if provided.

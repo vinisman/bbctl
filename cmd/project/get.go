@@ -16,7 +16,7 @@ func NewGetCmd() *cobra.Command {
 		key    string
 		all    bool
 		output string
-		input  string
+		file   string
 	)
 
 	cmd := &cobra.Command{
@@ -36,7 +36,7 @@ You must specify exactly one of the following options:
 			if all {
 				count++
 			}
-			if input != "" {
+			if file != "" {
 				count++
 			}
 			if count != 1 {
@@ -63,13 +63,13 @@ You must specify exactly one of the following options:
 					client.Logger.Error(err.Error())
 					return nil
 				}
-			case input != "":
+			case file != "":
 				var parsed models.ProjectList
-				if err := utils.ParseYAMLFile(input, &parsed); err != nil {
-					return fmt.Errorf("failed to parse YAML file %s: %w", input, err)
+				if err := utils.ParseYAMLFile(file, &parsed); err != nil {
+					return fmt.Errorf("failed to parse YAML file %s: %w", file, err)
 				}
 				if len(parsed.Projects) == 0 {
-					return fmt.Errorf("no projects found in file %s", input)
+					return fmt.Errorf("no projects found in file %s", file)
 				}
 
 				projects, err = client.GetProjects(parsed.Projects)
@@ -96,13 +96,12 @@ You must specify exactly one of the following options:
 		`Output format: plain|yaml|json.
 The "yaml" and "json" formats print the full available structure with all fields.`,
 	)
-	cmd.Flags().StringVarP(&input, "input", "i", "", `Path to YAML file with projects to get.
-You can also specify "-" to read the list of projects from stdin.
+	cmd.Flags().StringVarP(&file, "input", "i", "", `Path to YAML file with projects to get.
 Example file content:
   projects:
-    - projectKey1
-    - projectKey2
-    - projectKey3
+    - PRJ1
+    - PRJ2
+    - PRJ3
 `)
 	return cmd
 }

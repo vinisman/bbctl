@@ -46,10 +46,11 @@ jobs:
           ls -l release
 
       - name: Create GitHub Release and upload assets
+        uses: softprops/action-gh-release@v1
+        with:
+          files: release/*.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release create "${GITHUB_REF_NAME}" release/*.tar.gz --generate-notes --repo "${GITHUB_REPOSITORY}" --token "${GITHUB_TOKEN}"
   build-check:
     name: Build Check on PR
     runs-on: ubuntu-latest

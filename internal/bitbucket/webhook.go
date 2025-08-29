@@ -16,45 +16,31 @@ import (
 
 // Find webhooks fetches all webhooks for a given project and repository
 
-func (c *Client) GetWebhooks(repos []models.ExtendedRepository) ([]models.ExtendedRepository, error) {
-	var errs []string
+func (c *Client) GetWebhooks(projectKey, repoSlug string) ([]openapi.RestWebhook, error) {
+	httpResp, err := c.api.RepositoryAPI.FindWebhooks1(c.authCtx, projectKey, repoSlug).Execute()
+	if err != nil {
+		return nil, fmt.Errorf("failed to call FindWebhooks1: %w", err)
+	}
+	defer httpResp.Body.Close()
 
-	for i := range repos {
-		httpResp, err := c.api.RepositoryAPI.FindWebhooks1(c.authCtx, repos[i].ProjectKey, repos[i].RepositorySlug).Execute()
-		if err != nil {
-			errs = append(errs, fmt.Sprintf("failed to call FindWebhooks1 for %s/%s: %v", repos[i].ProjectKey, repos[i].RepositorySlug, err))
-			continue
-		}
-		defer httpResp.Body.Close()
-
-		if httpResp.StatusCode != http.StatusOK {
-			bodyBytes, _ := io.ReadAll(httpResp.Body)
-			errs = append(errs, fmt.Sprintf("unexpected status %d for %s/%s: %s", httpResp.StatusCode, repos[i].ProjectKey, repos[i].RepositorySlug, string(bodyBytes)))
-			continue
-		}
-
-		bodyBytes, err := io.ReadAll(httpResp.Body)
-		if err != nil {
-			errs = append(errs, fmt.Sprintf("failed to read response body for %s/%s: %v", repos[i].ProjectKey, repos[i].RepositorySlug, err))
-			continue
-		}
-
-		c.logger.Debug("Details", "bodyBytes", bodyBytes)
-
-		var webhooksResp models.WebhookResponse
-		if err := json.Unmarshal(bodyBytes, &webhooksResp); err != nil {
-			errs = append(errs, fmt.Sprintf("failed to parse webhook response JSON for %s/%s: %v", repos[i].ProjectKey, repos[i].RepositorySlug, err))
-			continue
-		}
-
-		repos[i].Webhooks = webhooksResp.Values
+	if httpResp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(httpResp.Body)
+		return nil, fmt.Errorf("unexpected status %d: %s", httpResp.StatusCode, string(bodyBytes))
 	}
 
-	if len(errs) > 0 {
-		return nil, fmt.Errorf("errors occurred fetching webhooks: %s", strings.Join(errs, "; "))
+	bodyBytes, err := io.ReadAll(httpResp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	return repos, nil
+	c.logger.Debug("Details", "bodyBytes", bodyBytes)
+
+	var webhooksResp models.WebhookResponse
+	if err := json.Unmarshal(bodyBytes, &webhooksResp); err != nil {
+		return nil, fmt.Errorf("failed to parse webhook response JSON: %w", err)
+	}
+
+	return webhooksResp.Values, nil
 }
 
 // CreateWebhook creates new webhooks concurrently for multiple repositories

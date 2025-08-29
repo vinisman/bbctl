@@ -19,7 +19,7 @@ func NewForkCmd() *cobra.Command {
 		newName          string
 		newDefaultBranch string
 		newDescription   string
-		input            string
+		file             string
 	)
 
 	cmd := &cobra.Command{
@@ -30,8 +30,8 @@ You must specify either --repositorySlug with --newProjectKey for a single repos
 or --input for a YAML file containing multiple forks.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Validate input: either single fork or file
-			if (input != "" && repositorySlug != "") ||
-				(input == "" && repositorySlug == "") {
+			if (file != "" && repositorySlug != "") ||
+				(file == "" && repositorySlug == "") {
 				return fmt.Errorf("either --input, or --repositorySlug must be specified, but not both")
 			}
 
@@ -41,11 +41,11 @@ or --input for a YAML file containing multiple forks.`,
 			}
 
 			// Case 1: fork from YAML file
-			if input != "" {
+			if file != "" {
 				var parsed struct {
 					Repositories []models.ExtendedRepository `yaml:"repositories"`
 				}
-				if err := utils.ParseYAMLFile(input, &parsed); err != nil {
+				if err := utils.ParseYAMLFile(file, &parsed); err != nil {
 					return fmt.Errorf("failed to parse YAML file: %w", err)
 				}
 				return client.ForkRepos(parsed.Repositories)
@@ -100,7 +100,7 @@ or --input for a YAML file containing multiple forks.`,
 	cmd.Flags().StringVar(&newName, "newName", "", "New name of the forked repository (optional, defaults to current repository name if not set)")
 	cmd.Flags().StringVar(&newDefaultBranch, "newDefaultBranch", "", "New default branch for the forked repository (optional)")
 	cmd.Flags().StringVar(&newDescription, "newDescription", "", "New description for the forked repository (optional)")
-	cmd.Flags().StringVarP(&input, "input", "i", "", `Path to YAML file with forks to create, or '-' to read from stdin.
+	cmd.Flags().StringVarP(&file, "input", "i", "", `Path to YAML file with forks to create.
 Example YAML structure:
 repositories:
   - projectKey: PRJ1
