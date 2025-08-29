@@ -85,25 +85,27 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Check if release already exists
           if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
             echo "Release ${GITHUB_REF_NAME} already exists"
             exit 0
           fi
 
+          # Get previous tag
           PREV_TAG=$(git tag --sort=-creatordate | sed -n '2p' 2>/dev/null || echo "")
           
+          # Generate release notes only from feature/* and bugfix/* branches
           if [ -z "$PREV_TAG" ]; then
+            # First release - filter commits by message containing feature/ or bugfix/
             NOTES="## First release\n\n"
-            # Get commits from feature/bugfix branches and extract their messages
-            COMMITS=$(git log --oneline --format='%s|%h' --grep='\(feature/\|bugfix/\)' | while IFS='|' read -r message hash; do
-              echo "- $message ($hash)"
-            done || echo "")
+            COMMITS=$(git log --pretty=format:'- %s%n%b (%h)' | grep -E '(feature/|bugfix/)' || echo "")
           else
+            # Compare with previous tag, filter by message
             NOTES="## Changes since $PREV_TAG\n\n"
-            # Get commits since last tag from feature/bugfix branches
-            COMMITS=$(git log $PREV_TAG..HEAD --oneline --format='%s|%h' --grep='\(feature/\|bugfix/\)' | while IFS='|' read -r message hash; do
-              echo "- $message ($hash)"
-            done || echo "")
+            COMMITS=$(git log $PREV_TAG..HEAD --pretty=format:'%s%n%b (%h)' | awk '
+            /Merge pull request/ && /feature\/|bugfix\// {print; flag=1; next}
+            flag && NF {print; flag=0}
+            ')
           fi
           
           if [ -z "$COMMITS" ]; then
@@ -115,6 +117,7 @@ jobs:
           echo -e "$NOTES" > release_notes.md
           cat release_notes.md
           
+          # Create release with all artifacts
           gh release create "${GITHUB_REF_NAME}" release-final/*.tar.gz \
             --title "${GITHUB_REF_NAME}" \
             --notes-file release_notes.md
