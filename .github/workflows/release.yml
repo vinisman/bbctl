@@ -103,9 +103,8 @@ jobs:
             # Compare with previous tag, filter by message
             NOTES="## Changes since $PREV_TAG\n\n"
             COMMITS=$(git log $PREV_TAG..HEAD --pretty=format:'%s%n%b (%h)' | awk '
-            /Merge pull request/ && /feature\/|bugfix\// {print; flag=1; next}
-            flag && NF {print; flag=0}
-            ')
+            /Merge pull request/ && /feature\/|bugfix\// {printf "- %s\n", $0; flag=1; next}
+            flag && NF {printf "  %s\n\n", $0; flag=0}')
           fi
           
           if [ -z "$COMMITS" ]; then
