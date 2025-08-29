@@ -16,7 +16,7 @@ func NewUpdateCmd() *cobra.Command {
 		key         string
 		name        string
 		description string
-		file        string
+		input       string
 	)
 
 	cmd := &cobra.Command{
@@ -25,7 +25,7 @@ func NewUpdateCmd() *cobra.Command {
 		Long:  `Update one or more Bitbucket projects either from CLI flags or from a YAML file.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Validate input
-			if (key != "" && file != "") || (key == "" && file == "") {
+			if (key != "" && input != "") || (key == "" && input == "") {
 				return fmt.Errorf("either --key and --name or --input must be specified, but not both")
 			}
 
@@ -50,14 +50,14 @@ func NewUpdateCmd() *cobra.Command {
 			}
 
 			// Case 2: update from YAML file
-			if file != "" {
+			if input != "" {
 				var parsed models.ProjectYaml
-				if err := utils.ParseYAMLFile(file, &parsed); err != nil {
-					return fmt.Errorf("failed to parse YAML file %s: %w", file, err)
+				if err := utils.ParseYAMLFile(input, &parsed); err != nil {
+					return fmt.Errorf("failed to parse YAML file %s: %w", input, err)
 				}
 
 				if len(parsed.Projects) == 0 {
-					return fmt.Errorf("no projects found in file %s", file)
+					return fmt.Errorf("no projects found in file %s", input)
 				}
 
 				projects = parsed.Projects
@@ -79,7 +79,7 @@ func NewUpdateCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&key, "key", "k", "", "Project key (required if --input is not specified)")
 	cmd.Flags().StringVar(&name, "name", "", "Project name (required)")
 	cmd.Flags().StringVar(&description, "des", "", "Project description")
-	cmd.Flags().StringVarP(&file, "input", "i", "", `Path to YAML file with projects to update.
+	cmd.Flags().StringVarP(&input, "input", "i", "", `Path to YAML file with projects to update, or '-' to read from stdin.
 Example file content:
 projects:
   - key: DEMO

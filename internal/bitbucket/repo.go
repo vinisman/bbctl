@@ -568,19 +568,19 @@ func (c *Client) enrichRepository(r models.ExtendedRepository, projectKey string
 	}
 	// Webhooks
 	if options.Webhooks && r.RepositorySlug != "" {
-		hooks, err := c.GetWebhooks(projectKey, r.RepositorySlug)
-		if err == nil {
-			r.Webhooks = hooks
-		} else {
+		updated, err := c.GetWebhooks([]models.ExtendedRepository{r})
+		if err == nil && len(updated) > 0 {
+			r.Webhooks = updated[0].Webhooks
+		} else if err != nil {
 			errs = append(errs, fmt.Errorf("webhooks: %w", err))
 		}
 	}
 	// Required builds only
 	if options.RequiredBuilds && r.RepositorySlug != "" {
-		rb, err := c.GetRequiredBuilds(projectKey, r.RepositorySlug)
-		if err == nil {
-			r.RequiredBuilds = rb
-		} else {
+		rbList, err := c.GetRequiredBuilds([]models.ExtendedRepository{r})
+		if err == nil && len(rbList) > 0 {
+			r.RequiredBuilds = rbList[0].RequiredBuilds
+		} else if err != nil {
 			c.logger.Warn("Failed fetching required builds", "project", projectKey, "slug", r.RepositorySlug, "error", err)
 		}
 	}

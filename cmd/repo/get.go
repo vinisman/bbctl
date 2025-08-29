@@ -20,7 +20,7 @@ func NewGetCmd() *cobra.Command {
 		output         string
 		showDetails    string
 		manifestFile   string
-		inputFile      string
+		input          string
 	)
 
 	cmd := &cobra.Command{
@@ -40,7 +40,7 @@ Only one of these options should be used at a time.`,
 			if repositorySlug != "" {
 				count++
 			}
-			if inputFile != "" {
+			if input != "" {
 				count++
 			}
 			if count != 1 {
@@ -92,9 +92,9 @@ Only one of these options should be used at a time.`,
 				}
 			}
 
-			if inputFile != "" {
+			if input != "" {
 				var parsed models.RepositoryYaml
-				if err := utils.ParseYAMLFile(inputFile, &parsed); err != nil {
+				if err := utils.ParseYAMLFile(input, &parsed); err != nil {
 					return err
 				}
 				for _, repo := range parsed.Repositories {
@@ -171,7 +171,7 @@ Only one of these options should be used at a time.`,
 	  webhooks
 	  required-builds
 	`)
-	cmd.Flags().StringVarP(&inputFile, "input", "i", "", "Path to input YAML file containing repositories")
+	cmd.Flags().StringVarP(&input, "input", "i", "", "Path to input YAML file containing repositories (use '-' to read from stdin)")
 
 	return cmd
 }

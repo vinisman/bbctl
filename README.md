@@ -8,8 +8,9 @@ It provides streamlined support for creating, deleting, updating, and retrieving
 - Manage multiple repositories and multiple projects
 - Retrieve additional repository information using a manifest file from the root of the repository  
 - Parallel processing for high-performance bulk operations
-- YAML input/output for full GitOps compatibility
+- YAML/JSON output for full GitOps compatibility
 - Easy configuration via `.env` file
+- Support reading YAML from stdin (`-`) for all relevant commands
 
 ## Configuration
 Add a `.env` properties file as shown below, or provide configuration via command-line flags.  

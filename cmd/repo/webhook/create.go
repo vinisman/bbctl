@@ -12,7 +12,7 @@ import (
 
 // CreateWebHookCmd returns a cobra command to create webhooks from a YAML file
 func CreateWebHookCmd() *cobra.Command {
-	var file string
+	var input string
 
 	cmd := &cobra.Command{
 		Use:   "create",
@@ -22,17 +22,17 @@ func CreateWebHookCmd() *cobra.Command {
 Be careful: Bitbucket allows webhooks with duplicate names, 
 so make sure to use unique names to avoid confusion or accidental overwrites.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if file == "" {
+			if input == "" {
 				return fmt.Errorf("--input is required")
 			}
 
 			var parsed models.RepositoryYaml
-			if err := utils.ParseYAMLFile(file, &parsed); err != nil {
+			if err := utils.ParseYAMLFile(input, &parsed); err != nil {
 				return fmt.Errorf("failed to parse YAML file: %w", err)
 			}
 
 			if len(parsed.Repositories) == 0 {
-				return fmt.Errorf("no repositories found in file %s", file)
+				return fmt.Errorf("no repositories found in file %s", input)
 			}
 
 			hasWebhooks := false
@@ -43,7 +43,7 @@ so make sure to use unique names to avoid confusion or accidental overwrites.`,
 				}
 			}
 			if !hasWebhooks {
-				return fmt.Errorf("no webhooks defined in file %s", file)
+				return fmt.Errorf("no webhooks defined in file %s", input)
 			}
 
 			client, err := bitbucket.NewClient(context.Background())
@@ -61,7 +61,7 @@ so make sure to use unique names to avoid confusion or accidental overwrites.`,
 		},
 	}
 
-	cmd.Flags().StringVarP(&file, "input", "i", "", `Path to YAML file with webhooks to create
+	cmd.Flags().StringVarP(&input, "input", "i", "", `Path to YAML file or '-' to read from stdin
 Example:
 repositories:
   - projectKey: DEV

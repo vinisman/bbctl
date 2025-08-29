@@ -18,7 +18,7 @@ func NewCreateCmd() *cobra.Command {
 		repositorySlug string
 		description    string
 		defaultBranch  string
-		file           string
+		input          string
 	)
 
 	cmd := &cobra.Command{
@@ -30,7 +30,7 @@ You must specify either:
   --input (YAML file with one or more repositories to create).`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Validate arguments
-			if (file != "" && (projectKey != "" || name != "" || repositorySlug != "")) || (file == "" && (projectKey == "" || name == "")) {
+			if (input != "" && (projectKey != "" || name != "" || repositorySlug != "")) || (input == "" && (projectKey == "" || name == "")) {
 				return fmt.Errorf("either --input or (--projectKey and --name) must be specified")
 			}
 
@@ -42,15 +42,15 @@ You must specify either:
 			var repos []models.ExtendedRepository
 
 			// Case 1: create from YAML file
-			if file != "" {
+			if input != "" {
 				var parsed struct {
 					Repositories []models.ExtendedRepository `yaml:"repositories"`
 				}
-				if err := utils.ParseYAMLFile(file, &parsed); err != nil {
-					return fmt.Errorf("failed to parse YAML file %s: %w", file, err)
+				if err := utils.ParseYAMLFile(input, &parsed); err != nil {
+					return fmt.Errorf("failed to parse YAML file %s: %w", input, err)
 				}
 				if len(parsed.Repositories) == 0 {
-					return fmt.Errorf("no repositories found in %s", file)
+					return fmt.Errorf("no repositories found in %s", input)
 				}
 				repos = parsed.Repositories
 			} else {
@@ -82,7 +82,7 @@ You must specify either:
 	cmd.Flags().StringVarP(&repositorySlug, "repositorySlug", "s", "", "Slug of the repository (optional, required if --input not used)")
 	cmd.Flags().StringVar(&description, "desc", "", "Repository description (optional)")
 	cmd.Flags().StringVar(&defaultBranch, "default-branch", "", "Default branch name (optional)")
-	cmd.Flags().StringVarP(&file, "input", "i", "", `Path to YAML file with repositories to create.
+	cmd.Flags().StringVarP(&input, "input", "i", "", `Path to YAML file with repositories to create. Use '-' to read from stdin.
 Example YAML:
 repositories:
   - projectKey: PRJ1
