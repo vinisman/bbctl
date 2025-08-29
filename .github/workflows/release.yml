@@ -49,16 +49,31 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Fetch all branches and tags with full history
-          git fetch --prune --unshallow --tags --all --force --depth=0 || true
-
-          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^1 2>/dev/null || echo "")
+          set -e
+          # Ensure full fetch of tags and branches
+          git fetch --prune --tags --all || true
+          
+          # Skip release if it already exists
+          if gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "Release ${GITHUB_REF_NAME} already exists, skipping."
+            exit 0
+          fi
+          
+          # Determine previous tag safely
+          PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          
+          # Generate release notes safely
           if [ -z "$PREV_TAG" ]; then
-            # First release or no previous tag, include all commits on feature/* and bugfix/* branches
             COMMITS=$(git log --branches='feature/*' --branches='bugfix/*' --pretty=format:'- %s (%an)')
           else
             COMMITS=$(git log $PREV_TAG..HEAD --branches='feature/*' --branches='bugfix/*' --pretty=format:'- %s (%an)')
           fi
+          
+          if [ $? -ne 0 ]; then
+            echo "Failed to generate release notes, aborting release creation."
+            exit 1
+          fi
+          
           if [ -z "$COMMITS" ]; then
             echo "No feature or bugfix commits since previous release" > release_notes.md
           else
