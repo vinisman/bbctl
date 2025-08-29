@@ -94,17 +94,19 @@ jobs:
           # Get previous tag
           PREV_TAG=$(git tag --sort=-creatordate | sed -n '2p' 2>/dev/null || echo "")
           
-          # Generate release notes
+          # Generate release notes only from feature/* and bugfix/* branches
           if [ -z "$PREV_TAG" ]; then
+            # First release - filter commits by message containing feature/ or bugfix/
             NOTES="## First release\n\n"
-            COMMITS=$(git log --oneline --format='- %s (%h)' || echo "")
+            COMMITS=$(git log --oneline --format='- %s (%h)' | grep -E '(feature/|bugfix/)' || echo "")
           else
+            # Compare with previous tag, filter by message
             NOTES="## Changes since $PREV_TAG\n\n"
-            COMMITS=$(git log $PREV_TAG..HEAD --oneline --format='- %s (%h)' || echo "")
+            COMMITS=$(git log $PREV_TAG..HEAD --oneline --format='- %s (%h)' | grep -E '(feature/|bugfix/)' || echo "")
           fi
           
           if [ -z "$COMMITS" ]; then
-            NOTES+="No commits in this release"
+            NOTES+="No feature or bugfix commits in this release"
           else
             NOTES+="$COMMITS"
           fi
