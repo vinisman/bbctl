@@ -16,7 +16,7 @@ import (
 
 // DeleteWebHookCmd returns a cobra command to delete webhooks from a YAML file or flags
 func DeleteWebHookCmd() *cobra.Command {
-	var file string
+	var input string
 	var projectKey string
 	var repositorySlug string
 	var ids string
@@ -25,24 +25,24 @@ func DeleteWebHookCmd() *cobra.Command {
 		Use:   "delete",
 		Short: "Delete webhooks from YAML file by Id or from flags",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if file == "" && (projectKey == "" || repositorySlug == "" || ids == "") {
+			if input == "" && (projectKey == "" || repositorySlug == "" || ids == "") {
 				return fmt.Errorf("either --input or all of --projectKey, --repositorySlug, and --ids must be provided")
 			}
-			if file != "" && (projectKey != "" || repositorySlug != "" || ids != "") {
+			if input != "" && (projectKey != "" || repositorySlug != "" || ids != "") {
 				return fmt.Errorf("--input cannot be used together with --projectKey, --repositorySlug, or --ids")
 			}
 
 			var repositories []models.ExtendedRepository
 
-			if file != "" {
+			if input != "" {
 				var parsed models.RepositoryYaml
 
-				if err := utils.ParseYAMLFile(file, &parsed); err != nil {
+				if err := utils.ParseYAMLFile(input, &parsed); err != nil {
 					return fmt.Errorf("failed to parse YAML file: %w", err)
 				}
 
 				if len(parsed.Repositories) == 0 {
-					return fmt.Errorf("no repositories found in file %s", file)
+					return fmt.Errorf("no repositories found in file %s", input)
 				}
 
 				repositories = parsed.Repositories
@@ -92,7 +92,7 @@ func DeleteWebHookCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&file, "input", "i", "", `Path to YAML file with repositories and webhooks to delete
+	cmd.Flags().StringVarP(&input, "input", "i", "", `Path to YAML file with repositories and webhooks to delete (use '-' to read YAML from stdin
 Example:
   repositories:
     - projectKey: DEV

@@ -57,6 +57,14 @@ func isSafePath(path string) bool {
 
 // ParseYAMLFile reads YAML file and unmarshals into provided struct pointer
 func ParseYAMLFile[T any](filePath string, out *T) error {
+	if filePath == "-" {
+		decoder := yaml.NewDecoder(os.Stdin)
+		if err := decoder.Decode(out); err != nil {
+			return fmt.Errorf("failed to parse YAML from stdin: %w", err)
+		}
+		return nil
+	}
+
 	if !isSafePath(filePath) {
 		return fmt.Errorf("invalid file path")
 	}

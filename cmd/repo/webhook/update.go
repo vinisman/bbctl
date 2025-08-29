@@ -12,23 +12,23 @@ import (
 
 // UpdateWebHookCmd returns a cobra command to update webhooks from a YAML file
 func UpdateWebHookCmd() *cobra.Command {
-	var file string
+	var input string
 
 	cmd := &cobra.Command{
 		Use:   "update",
 		Short: "Update webhooks from YAML file by Id",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if file == "" {
+			if input == "" {
 				return fmt.Errorf("--input is required")
 			}
 
 			var parsed models.RepositoryYaml
-			if err := utils.ParseYAMLFile(file, &parsed); err != nil {
+			if err := utils.ParseYAMLFile(input, &parsed); err != nil {
 				return fmt.Errorf("failed to parse YAML file: %w", err)
 			}
 
 			if len(parsed.Repositories) == 0 {
-				return fmt.Errorf("no repositories found in file %s", file)
+				return fmt.Errorf("no repositories found in file %s", input)
 			}
 
 			client, err := bitbucket.NewClient(context.Background())
@@ -45,7 +45,7 @@ func UpdateWebHookCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&file, "input", "i", "", `Path to YAML file with webhooks to update
+	cmd.Flags().StringVarP(&input, "input", "i", "", `Path to YAML file with webhooks to update or '-' to read from stdin
 Example:
   repositories:
     - projectKey: DEV
