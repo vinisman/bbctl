@@ -1,4 +1,3 @@
-# .github/workflows/release.yml
 name: Build and Release bbctl
 
 on:
@@ -22,6 +21,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v4
@@ -29,60 +30,46 @@ jobs:
           go-version-file: go.mod
 
       - name: Build binary
-        id: build
         run: |
-          BIN=bbctl-${GITHUB_REF_NAME}-${{ matrix.goos }}-${{ matrix.goarch }}
-          [[ "${{ matrix.goos }}" == "windows" ]] && BIN=${BIN}.exe
-          echo "BIN=$BIN" >> "$GITHUB_ENV"
-          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -ldflags="-s -w -X 'github.com/vinisman/bbctl/cmd.Version=${GITHUB_REF_NAME}' -X 'github.com/vinisman/bbctl/cmd.Commit=${GITHUB_SHA}'" -o $BIN
-          ls -l $BIN
+          BIN_NAME=bbctl-${GITHUB_REF_NAME}-${{ matrix.goos }}-${{ matrix.goarch }}
+          [[ "${{ matrix.goos }}" == "windows" ]] && BIN_NAME=${BIN_NAME}.exe
+          echo "BIN_NAME=$BIN_NAME" >> "$GITHUB_ENV"
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build \
+            -ldflags="-s -w -X 'github.com/vinisman/bbctl/cmd.Version=${GITHUB_REF_NAME}' -X 'github.com/vinisman/bbctl/cmd.Commit=${GITHUB_SHA}'" \
+            -o $BIN_NAME
 
       - name: Package artifact
-        env:
-          BIN: ${{ env.BIN }}
         run: |
           mkdir -p release
-          tar -czf release/${BIN}.tar.gz "$BIN"
-          ls -l release
+          tar -czf release/${BIN_NAME}.tar.gz "$BIN_NAME"
 
-      - name: Create GitHub Release and upload assets
+      - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -e
-          # Ensure full fetch of tags and branches
-          git fetch --prune --tags --all || true
-          
-          # Skip release if it already exists
-          if gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            echo "Release ${GITHUB_REF_NAME} already exists, skipping."
+          # Check if release already exists
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            echo "Release ${GITHUB_REF_NAME} already exists"
             exit 0
           fi
-          
-          # Determine previous tag safely
-          PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-          
-          # Generate release notes safely
-          if [ -z "$PREV_TAG" ]; then
-            COMMITS=$(git log --branches='feature/*' --branches='bugfix/*' --pretty=format:'- %s (%an)')
-          else
-            COMMITS=$(git log $PREV_TAG..HEAD --branches='feature/*' --branches='bugfix/*' --pretty=format:'- %s (%an)')
-          fi
-          
-          if [ $? -ne 0 ]; then
-            echo "Failed to generate release notes, aborting release creation."
-            exit 1
-          fi
-          
-          if [ -z "$COMMITS" ]; then
-            echo "No feature or bugfix commits since previous release" > release_notes.md
-          else
-            echo "$COMMITS" > release_notes.md
-          fi
 
+          # Get previous tag
+          PREV_TAG=$(git tag --sort=-creatordate | sed -n '2p' 2>/dev/null || echo "")
+          
+          # Generate release notes
+          if [ -z "$PREV_TAG" ]; then
+            NOTES="## First release\n\n$(git log --oneline --format='- %s')"
+          else
+            NOTES="## Changes since $PREV_TAG\n\n$(git log --oneline --format='- %s' $PREV_TAG..HEAD)"
+          fi
+          
+          echo -e "$NOTES" > release_notes.md
+          
+          # Create release with all artifacts
           gh release create "${GITHUB_REF_NAME}" release/*.tar.gz \
-            --notes-file release_notes.md \
-            --repo "${GITHUB_REPOSITORY}"
+            --title "${GITHUB_REF_NAME}" \
+            --notes-file release_notes.md
+
   build-check:
     name: Build Check on PR
     runs-on: ubuntu-latest
@@ -101,7 +88,8 @@ jobs:
 
       - name: Build binary
         run: |
-          BIN=bbctl-${GITHUB_REF_NAME}-${{ matrix.goos }}-${{ matrix.goarch }}
-          [[ "${{ matrix.goos }}" == "windows" ]] && BIN=${BIN}.exe
-          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -ldflags="-s -w -X 'github.com/vinisman/bbctl/cmd.Version=${GITHUB_REF_NAME}' -X 'github.com/vinisman/bbctl/cmd.Commit=${GITHUB_SHA}'" -o $BIN
-          ls -l $BIN
+          BIN_NAME=bbctl-pr-${{ github.sha }}-${{ matrix.goos }}-${{ matrix.goarch }}
+          [[ "${{ matrix.goos }}" == "windows" ]] && BIN_NAME=${BIN_NAME}.exe
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build \
+            -ldflags="-s -w -X 'github.com/vinisman/bbctl/cmd.Version=pr-${{ github.sha }}' -X 'github.com/vinisman/bbctl/cmd.Commit=${GITHUB_SHA}'" \
+            -o $BIN_NAME
