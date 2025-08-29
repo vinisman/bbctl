@@ -49,6 +49,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -e
           # Ensure full fetch of tags and branches
           git fetch --prune --tags --all || true
           
@@ -58,13 +59,21 @@ jobs:
             exit 0
           fi
           
-          # Determine previous tag
+          # Determine previous tag safely
           PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          
+          # Generate release notes safely
           if [ -z "$PREV_TAG" ]; then
             COMMITS=$(git log --branches='feature/*' --branches='bugfix/*' --pretty=format:'- %s (%an)')
           else
             COMMITS=$(git log $PREV_TAG..HEAD --branches='feature/*' --branches='bugfix/*' --pretty=format:'- %s (%an)')
           fi
+          
+          if [ $? -ne 0 ]; then
+            echo "Failed to generate release notes, aborting release creation."
+            exit 1
+          fi
+          
           if [ -z "$COMMITS" ]; then
             echo "No feature or bugfix commits since previous release" > release_notes.md
           else
