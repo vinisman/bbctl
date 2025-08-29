@@ -47,9 +47,15 @@ jobs:
 
       - name: Create GitHub Release and upload assets
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" release/*.tar.gz --generate-notes --repo "${GITHUB_REPOSITORY}" --token "${GITHUB_TOKEN}"
+          # Generate release notes from feature/* and bugfix/* branches
+          git fetch --all
+          git log $(git describe --tags --abbrev=0 HEAD^1)..HEAD --branches='feature/*' --branches='bugfix/*' --pretty=format:'- %s (%an)' > release_notes.md
+          
+          gh release create "${GITHUB_REF_NAME}" release/*.tar.gz \
+            --notes-file release_notes.md \
+            --repo "${GITHUB_REPOSITORY}"
   build-check:
     name: Build Check on PR
     runs-on: ubuntu-latest
