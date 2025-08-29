@@ -46,11 +46,43 @@ jobs:
           ls -l release
 
       - name: Create GitHub Release and upload assets
-        uses: softprops/action-gh-release@v1
-        with:
-          files: release/*.tar.gz
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          # Ensure full fetch of tags and branches
+          git fetch --prune --tags --all || true
+          
+          # Skip release if it already exists
+          if gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "Release ${GITHUB_REF_NAME} already exists, skipping."
+            exit 0
+          fi
+          
+          # Determine previous tag safely
+          PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          
+          # Generate release notes safely
+          if [ -z "$PREV_TAG" ]; then
+            COMMITS=$(git log --branches='feature/*' --branches='bugfix/*' --pretty=format:'- %s (%an)')
+          else
+            COMMITS=$(git log $PREV_TAG..HEAD --branches='feature/*' --branches='bugfix/*' --pretty=format:'- %s (%an)')
+          fi
+          
+          if [ $? -ne 0 ]; then
+            echo "Failed to generate release notes, aborting release creation."
+            exit 1
+          fi
+          
+          if [ -z "$COMMITS" ]; then
+            echo "No feature or bugfix commits since previous release" > release_notes.md
+          else
+            echo "$COMMITS" > release_notes.md
+          fi
+
+          gh release create "${GITHUB_REF_NAME}" release/*.tar.gz \
+            --notes-file release_notes.md \
+            --repo "${GITHUB_REPOSITORY}"
   build-check:
     name: Build Check on PR
     runs-on: ubuntu-latest
