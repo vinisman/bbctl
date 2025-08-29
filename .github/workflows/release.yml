@@ -49,8 +49,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Generate release notes from feature/* and bugfix/* branches
+          git fetch --all
+          git log $(git describe --tags --abbrev=0 HEAD^1)..HEAD --branches='feature/*' --branches='bugfix/*' --pretty=format:'- %s (%an)' > release_notes.md
+          
           gh release create "${GITHUB_REF_NAME}" release/*.tar.gz \
-            --generate-notes \
+            --notes-file release_notes.md \
             --repo "${GITHUB_REPOSITORY}"
   build-check:
     name: Build Check on PR
