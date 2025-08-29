@@ -31,7 +31,7 @@ jobs:
 
       - name: Build binary
         run: |
-          BIN_NAME=bbctl-${GITHUB_REF_NAME}-${{ matrix.goos }}-${{ matrix.goarch }}
+          BIN_NAME=bbctl
           [[ "${{ matrix.goos }}" == "windows" ]] && BIN_NAME=${BIN_NAME}.exe
           echo "BIN_NAME=$BIN_NAME" >> "$GITHUB_ENV"
           GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build \
@@ -41,7 +41,45 @@ jobs:
       - name: Package artifact
         run: |
           mkdir -p release
-          tar -czf release/${BIN_NAME}.tar.gz "$BIN_NAME"
+          ARTIFACT_NAME=bbctl-${GITHUB_REF_NAME}-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz
+          tar -czf release/${ARTIFACT_NAME} "$BIN_NAME"
+          echo "ARTIFACT_NAME=${ARTIFACT_NAME}" >> "$GITHUB_ENV"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: release/*.tar.gz
+          retention-days: 1
+
+  create-release:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+
+      - name: List downloaded artifacts
+        run: |
+          find release-artifacts -name "*.tar.gz" | xargs ls -la
+
+      - name: Prepare release assets
+        run: |
+          # Собираем все артефакты в одну папку
+          mkdir -p release-final
+          find release-artifacts -name "*.tar.gz" -exec cp {} release-final/ \;
+          ls -la release-final/
 
       - name: Create GitHub Release
         env:
@@ -58,15 +96,24 @@ jobs:
           
           # Generate release notes
           if [ -z "$PREV_TAG" ]; then
-            NOTES="## First release\n\n$(git log --oneline --format='- %s')"
+            NOTES="## First release\n\n"
+            COMMITS=$(git log --oneline --format='- %s (%h)' || echo "")
           else
-            NOTES="## Changes since $PREV_TAG\n\n$(git log --oneline --format='- %s' $PREV_TAG..HEAD)"
+            NOTES="## Changes since $PREV_TAG\n\n"
+            COMMITS=$(git log $PREV_TAG..HEAD --oneline --format='- %s (%h)' || echo "")
+          fi
+          
+          if [ -z "$COMMITS" ]; then
+            NOTES+="No commits in this release"
+          else
+            NOTES+="$COMMITS"
           fi
           
           echo -e "$NOTES" > release_notes.md
+          cat release_notes.md
           
           # Create release with all artifacts
-          gh release create "${GITHUB_REF_NAME}" release/*.tar.gz \
+          gh release create "${GITHUB_REF_NAME}" release-final/*.tar.gz \
             --title "${GITHUB_REF_NAME}" \
             --notes-file release_notes.md
 
