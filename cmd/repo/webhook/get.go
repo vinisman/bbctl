@@ -39,35 +39,34 @@ func GetWebHookCmd() *cobra.Command {
 					return fmt.Errorf("please specify --repositorySlug")
 				}
 
-				parts := strings.SplitN(repositorySlug, "/", 2)
-				if len(parts) != 2 || parts[1] == "" {
-					client.Logger.Error("invalid repository identifier format, repository slug is empty")
-					return fmt.Errorf("invalid repository identifier format, repository slug is empty")
-				}
-
-				projectKey := parts[0]
-				slug := parts[1]
-
-				repositories = []models.ExtendedRepository{
-					{
-						ProjectKey:     projectKey,
-						RepositorySlug: slug,
-					},
+				repositories = []models.ExtendedRepository{}
+				items := strings.Split(repositorySlug, ",")
+				for _, item := range items {
+					item = strings.TrimSpace(item)
+					parts := strings.SplitN(item, "/", 2)
+					if len(parts) != 2 || parts[1] == "" {
+						client.Logger.Error(fmt.Sprintf("invalid repository identifier format: %s", item))
+						return fmt.Errorf("invalid repository identifier format: %s", item)
+					}
+					repositories = append(repositories, models.ExtendedRepository{
+						ProjectKey:     parts[0],
+						RepositorySlug: parts[1],
+					})
 				}
 			}
 
-			enrichedRepos, err := client.GetWebhooks(repositories)
+			values, err := client.GetWebhooks(repositories)
 			if err != nil {
 				client.Logger.Error(err.Error())
 				return nil
 			}
 
-			return utils.PrintStructured("webhooks", enrichedRepos, output, "id,name,webhooks")
+			return utils.PrintStructured("repositories", values, output, "projectKey,repositorySlug,webhooks.id,webhooks.name")
 
 		},
 	}
 
-	cmd.Flags().StringVarP(&repositorySlug, "repositorySlug", "s", "", "Repository identifier in format <projectKey>/<repositorySlug>")
+	cmd.Flags().StringVarP(&repositorySlug, "repositorySlug", "s", "", "Repository identifiers in format <projectKey>/<repositorySlug>, multiple repositories can be comma-separated")
 	cmd.Flags().StringVarP(&output, "output", "o", "plain", "Output format: plain|yaml|json")
 	cmd.Flags().StringVarP(&input, "input", "i", "", `Input YAML file or '-' for stdin containing repositories
 	Example:
