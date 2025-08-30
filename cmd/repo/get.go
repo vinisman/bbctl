@@ -115,8 +115,8 @@ Only one of these options should be used at a time.`,
 					cols = []string{"Id", "Name", "Slug", "Project"}
 				}
 
-				switch {
-				case len(slugList) > 0:
+				if len(slugList) > 0 {
+					projectMap := make(map[string][]string)
 					for _, combined := range slugList {
 						parts := strings.SplitN(combined, "/", 2)
 						if len(parts) != 2 || parts[1] == "" {
@@ -125,25 +125,29 @@ Only one of these options should be used at a time.`,
 						}
 						project := parts[0]
 						slug := parts[1]
-						r, err := client.GetReposBySlugs(project, []string{slug}, options)
+						projectMap[project] = append(projectMap[project], slug)
+					}
+
+					for project, slugs := range projectMap {
+						r, err := client.GetReposBySlugs(project, slugs, options)
 						if err != nil {
 							return err
 						}
 						repos = append(repos, r...)
 					}
-				case len(slugList) == 0 && len(projects) == 1:
+				} else if len(slugList) == 0 && len(projects) == 1 {
 					// Get all repos for single project
 					repos, err = client.GetAllReposForProject(projects[0], options)
 					if err != nil {
 						return err
 					}
-				case len(slugList) == 0 && len(projects) > 1:
+				} else if len(slugList) == 0 && len(projects) > 1 {
 					// Get all repos for multiple projects
 					repos, err = client.GetAllRepos(projects, options)
 					if err != nil {
 						return err
 					}
-				default:
+				} else {
 					return fmt.Errorf("invalid combination of --projectKey and --repositorySlug")
 				}
 			}
