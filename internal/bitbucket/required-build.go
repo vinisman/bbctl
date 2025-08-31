@@ -204,14 +204,20 @@ func (c *Client) DeleteRequiredBuilds(repos []models.ExtendedRepository) error {
 				Execute()
 
 			if err != nil {
-				c.logger.Debug("details", "httpResp", httpResp)
-				errCh <- fmt.Errorf("failed to delete required-build %d in %s/%s: %w",
-					j.id,
-					j.repo.ProjectKey, j.repo.RepositorySlug, err)
+				c.logger.Debug("HTTP response",
+					"status", httpResp.Status,
+					"statusCode", httpResp.StatusCode,
+					"body", httpResp.Body)
+				c.logger.Error("Failed to delete required build merge check",
+					"project", j.repo.ProjectKey,
+					"slug", j.repo.RepositorySlug,
+					"buildId", j.id,
+					"error", err)
+				errCh <- err
 				continue
 			}
 
-			c.logger.Info("Deleted required build merge check",
+			c.logger.Info("Required builds was successfully deleted, or was never present",
 				"project", j.repo.ProjectKey,
 				"slug", j.repo.RepositorySlug,
 				"buildId", j.id)
@@ -243,7 +249,7 @@ func (c *Client) DeleteRequiredBuilds(repos []models.ExtendedRepository) error {
 		errs = append(errs, e.Error())
 	}
 	if len(errs) > 0 {
-		return fmt.Errorf("errors occurred deleting required builds: %s", strings.Join(errs, "; "))
+		return fmt.Errorf("errors occurred deleting required builds")
 	}
 
 	return nil

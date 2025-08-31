@@ -1,0 +1,10 @@
+repositories:
+  - projectKey: project_1
+    repositorySlug: repo1
+    webhooks:
+      - id: 39
+      - id: 41
+  - projectKey: project_2
+    repositorySlug: repo2
+    webhooks:
+      - id: 42
