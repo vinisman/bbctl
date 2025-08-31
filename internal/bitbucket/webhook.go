@@ -231,21 +231,36 @@ func (c *Client) DeleteWebhooks(repos []models.ExtendedRepository) error {
 		defer wg.Done()
 		for j := range jobs {
 			if j.webhook.Id == nil {
-				errCh <- fmt.Errorf("webhook ID is required for deletion in %s/%s", j.repo.ProjectKey, j.repo.RepositorySlug)
+				c.logger.Error("Delete webhook failed",
+					"project", j.repo.ProjectKey,
+					"repo", j.repo.RepositorySlug,
+					"id", nil,
+					"error", "webhook ID is required")
+				errCh <- fmt.Errorf("delete webhook failed: missing id")
 				continue
 			}
+
 			httpResp, err := c.api.RepositoryAPI.
 				DeleteWebhook1(c.authCtx, j.repo.ProjectKey, utils.Int32PtrToString(j.webhook.Id), j.repo.RepositorySlug).
 				Execute()
 			if err != nil {
-				c.logger.Debug("details", "httpResp", httpResp)
-				errCh <- fmt.Errorf("failed to delete webhook %s in %s/%s: %w", utils.Int32PtrToString(j.webhook.Id), j.repo.ProjectKey, j.repo.RepositorySlug, err)
+				c.logger.Error("Delete webhook failed",
+					"project", j.repo.ProjectKey,
+					"repo", j.repo.RepositorySlug,
+					"id", utils.Int32PtrToString(j.webhook.Id),
+					"error", err)
+				c.logger.Debug("HTTP response",
+					"status", httpResp.Status,
+					"statusCode", httpResp.StatusCode,
+					"body", httpResp.Body)
+				errCh <- err
 				continue
 			}
+
 			c.logger.Info("Deleted webhook",
 				"project", j.repo.ProjectKey,
 				"repo", j.repo.RepositorySlug,
-				"id", j.webhook.Id)
+				"id", utils.Int32PtrToString(j.webhook.Id))
 		}
 	}
 
@@ -272,9 +287,8 @@ func (c *Client) DeleteWebhooks(repos []models.ExtendedRepository) error {
 		errs = append(errs, e.Error())
 	}
 	if len(errs) > 0 {
-		return fmt.Errorf("errors occurred deleting webhooks: %s", strings.Join(errs, "; "))
+		return fmt.Errorf("errors occurred deleting webhooks")
 	}
-
 	return nil
 }
 
