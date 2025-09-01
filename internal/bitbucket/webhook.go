@@ -58,12 +58,13 @@ func (c *Client) GetWebhooks(repos []models.ExtendedRepository) ([]models.Extend
 }
 
 // CreateWebhook creates new webhooks concurrently for multiple repositories
-func (c *Client) CreateWebhooks(repos []models.ExtendedRepository) error {
+func (c *Client) CreateWebhooks(repos []models.ExtendedRepository) ([]models.ExtendedRepository, error) {
 	maxWorkers := config.GlobalMaxWorkers
 
 	type job struct {
-		repo    models.ExtendedRepository
-		webhook openapi.RestWebhook
+		repoIndex int
+		repo      models.ExtendedRepository
+		webhook   openapi.RestWebhook
 	}
 
 	// count the total number of webhook tasks
@@ -75,7 +76,15 @@ func (c *Client) CreateWebhooks(repos []models.ExtendedRepository) error {
 	jobs := make(chan job, total)
 	errCh := make(chan error, total)
 
+	var mu sync.Mutex
 	var wg sync.WaitGroup
+
+	newRepos := make([]models.ExtendedRepository, len(repos))
+	for i := range repos {
+		newRepos[i].ProjectKey = repos[i].ProjectKey
+		newRepos[i].RepositorySlug = repos[i].RepositorySlug
+		newRepos[i].Webhooks = make([]openapi.RestWebhook, 0)
+	}
 
 	worker := func() {
 		defer wg.Done()
@@ -86,19 +95,22 @@ func (c *Client) CreateWebhooks(repos []models.ExtendedRepository) error {
 				Execute()
 
 			if err != nil {
-				c.logger.Debug("details", "httpResp", httpResp)
-				errCh <- fmt.Errorf("failed to create webhook %s in %s/%s: %w",
-					utils.SafeValue(j.webhook.Name),
-					j.repo.ProjectKey, j.repo.RepositorySlug, err)
+				c.logger.Error("failed to create webhook",
+					"error", err,
+					"project", j.repo.ProjectKey,
+					"repo", j.repo.RepositorySlug,
+					"name", utils.SafeValue(j.webhook.Name))
+				c.logger.Debug("HTTP response details",
+					"status", httpResp.Status,
+					"statusCode", httpResp.StatusCode,
+					"body", httpResp.Body)
+				errCh <- err
 				continue
 			}
 
-			c.logger.Info("Created webhook",
-				"project", j.repo.ProjectKey,
-				"repo", j.repo.RepositorySlug,
-				"id", utils.SafeValue(created.Id),
-				"name", utils.SafeValue(created.Name),
-				"url", utils.SafeValue(created.Url))
+			mu.Lock()
+			newRepos[j.repoIndex].Webhooks = append(newRepos[j.repoIndex].Webhooks, *created)
+			mu.Unlock()
 		}
 	}
 
@@ -109,9 +121,9 @@ func (c *Client) CreateWebhooks(repos []models.ExtendedRepository) error {
 	}
 
 	// send all jobs to the channel
-	for _, r := range repos {
+	for i, r := range repos {
 		for _, wh := range r.Webhooks {
-			jobs <- job{repo: r, webhook: wh}
+			jobs <- job{repoIndex: i, repo: r, webhook: wh}
 		}
 	}
 	close(jobs)
@@ -120,15 +132,21 @@ func (c *Client) CreateWebhooks(repos []models.ExtendedRepository) error {
 	close(errCh)
 
 	// collect all errors
-	var errs []string
+	var firstErr error
 	for e := range errCh {
-		errs = append(errs, e.Error())
-	}
-	if len(errs) > 0 {
-		return fmt.Errorf("errors occurred creating webhooks: %s", strings.Join(errs, "; "))
+		if firstErr == nil {
+			firstErr = e
+		}
 	}
 
-	return nil
+	// filter newRepos: only those with at least one webhook
+	filteredRepos := []models.ExtendedRepository{}
+	for _, r := range newRepos {
+		if len(r.Webhooks) > 0 {
+			filteredRepos = append(filteredRepos, r)
+		}
+	}
+	return filteredRepos, firstErr
 }
 
 // UpdateWebhook updates existing webhooks concurrently by updating all webhooks listed in repos.Webhooks

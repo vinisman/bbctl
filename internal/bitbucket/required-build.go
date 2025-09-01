@@ -12,7 +12,7 @@ import (
 )
 
 // CreateRequiredBuilds creates required build merge checks for multiple repositories in parallel
-func (c *Client) CreateRequiredBuilds(repos []models.ExtendedRepository) error {
+func (c *Client) CreateRequiredBuilds(repos []models.ExtendedRepository) ([]models.ExtendedRepository, error) {
 	maxWorkers := config.GlobalMaxWorkers
 
 	type job struct {
@@ -31,6 +31,9 @@ func (c *Client) CreateRequiredBuilds(repos []models.ExtendedRepository) error {
 
 	var wg sync.WaitGroup
 
+	createdBuildsMu := sync.Mutex{}
+	createdBuildsMap := make(map[string][]openapi.RestRequiredBuildCondition)
+
 	worker := func() {
 		defer wg.Done()
 		for j := range jobs {
@@ -41,9 +44,12 @@ func (c *Client) CreateRequiredBuilds(repos []models.ExtendedRepository) error {
 
 			if err != nil {
 				c.logger.Debug("details", "httpResp", httpResp)
-				errCh <- fmt.Errorf("failed to create required-build %v in %s/%s: %w",
-					j.req.BuildParentKeys,
-					j.repo.ProjectKey, j.repo.RepositorySlug, err)
+				c.logger.Error("Failed to create required-build",
+					"project", j.repo.ProjectKey,
+					"slug", j.repo.RepositorySlug,
+					"buildParentKeys", j.req.BuildParentKeys,
+					"error", err)
+				errCh <- err
 				continue
 			}
 
@@ -60,6 +66,13 @@ func (c *Client) CreateRequiredBuilds(repos []models.ExtendedRepository) error {
 				"project", j.repo.ProjectKey,
 				"slug", j.repo.RepositorySlug,
 				"buildKey", utils.SafeInterface(buildKey))
+
+			// Only add if Id is not nil
+			if created != nil && created.Id != nil {
+				createdBuildsMu.Lock()
+				createdBuildsMap[j.repo.ProjectKey+"/"+j.repo.RepositorySlug] = append(createdBuildsMap[j.repo.ProjectKey+"/"+j.repo.RepositorySlug], *created)
+				createdBuildsMu.Unlock()
+			}
 		}
 	}
 
@@ -86,11 +99,23 @@ func (c *Client) CreateRequiredBuilds(repos []models.ExtendedRepository) error {
 	for e := range errCh {
 		errs = append(errs, e.Error())
 	}
-	if len(errs) > 0 {
-		return fmt.Errorf("errors occurred creating required builds: %s", strings.Join(errs, "; "))
+
+	// build slice of repos with created builds
+	var createdRepos []models.ExtendedRepository
+	for _, r := range repos {
+		key := r.ProjectKey + "/" + r.RepositorySlug
+		if builds, ok := createdBuildsMap[key]; ok && len(builds) > 0 {
+			// Assign only the created builds
+			r.RequiredBuilds = builds
+			createdRepos = append(createdRepos, r)
+		}
 	}
 
-	return nil
+	if len(errs) > 0 {
+		return createdRepos, fmt.Errorf("errors occurred creating required builds: %s", strings.Join(errs, "; "))
+	}
+
+	return createdRepos, nil
 }
 
 func (c *Client) UpdateRequiredBuilds(repos []models.ExtendedRepository) error {
