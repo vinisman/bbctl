@@ -12,6 +12,7 @@ import (
 
 func CreateRequiredBuildCmd() *cobra.Command {
 	var input string
+	var output string
 
 	cmd := &cobra.Command{
 		Use:   "create",
@@ -50,11 +51,26 @@ so make sure to use unique names to avoid confusion or accidental overwrites.`,
 				return err
 			}
 
-			err = client.CreateRequiredBuilds(parsed.Repositories)
+			updatedRepos, err := client.CreateRequiredBuilds(parsed.Repositories)
 			if err != nil {
 				client.Logger.Error(err.Error())
 			}
 
+			if output != "" {
+				return utils.PrintStructured("repositories", updatedRepos, output, "")
+			}
+
+			// If output is empty or not specified, log Info for each created required-build
+			for _, repo := range updatedRepos {
+				for _, rb := range repo.RequiredBuilds {
+					client.Logger.Info("Created required-build",
+						"project", repo.ProjectKey,
+						"slug", repo.RepositorySlug,
+						"buildId", rb.Id)
+				}
+			}
+
+			// Do not print anything to stdout
 			return nil
 
 		},
@@ -78,6 +94,8 @@ repositories:
               id: ANY_REF
               name: Any branch
 `)
+
+	cmd.Flags().StringVarP(&output, "output", "o", "", "Output format: yaml or json")
 
 	return cmd
 }

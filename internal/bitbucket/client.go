@@ -42,7 +42,6 @@ func NewClient(ctx context.Context) (*Client, error) {
 		config.GlobalLogger.Debug("Using Basic Auth")
 	} else if config.GlobalCfg.Token != "" {
 		cfgOpenAPI.AddDefaultHeader("Authorization", "Bearer "+config.GlobalCfg.Token)
-		config.GlobalLogger.Debug("Using Token Auth")
 	} else {
 		return nil, fmt.Errorf("either token or username/password must be provided")
 	}
