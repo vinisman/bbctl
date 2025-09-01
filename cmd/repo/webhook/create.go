@@ -57,22 +57,11 @@ so make sure to use unique names to avoid confusion or accidental overwrites.`,
 				client.Logger.Error(err.Error())
 			}
 
-			if output == "" {
-				// Print info logs for each created webhook when output is empty
-				for _, repo := range updatedRepos {
-					for _, wh := range repo.Webhooks {
-						client.Logger.Info(fmt.Sprintf("Created webhook %s for repository %s/%s", utils.Int32PtrToString(wh.Id), repo.ProjectKey, repo.RepositorySlug))
-					}
-				}
-				return nil
-			}
-
 			if output != "yaml" && output != "json" {
 				return fmt.Errorf("invalid output format: %s, allowed values: yaml, json", output)
 			}
 
-			parsed.Repositories = updatedRepos
-			return utils.PrintStructured("repositories", parsed.Repositories, output, "")
+			return utils.PrintStructured("repositories", updatedRepos, output, "")
 		},
 	}
 
