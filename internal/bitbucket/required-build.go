@@ -95,9 +95,11 @@ func (c *Client) CreateRequiredBuilds(repos []models.ExtendedRepository) ([]mode
 	close(errCh)
 
 	// collect all errors
-	var errs []string
+	var firstErr error
 	for e := range errCh {
-		errs = append(errs, e.Error())
+		if firstErr == nil {
+			firstErr = e
+		}
 	}
 
 	// build slice of repos with created builds
@@ -109,10 +111,6 @@ func (c *Client) CreateRequiredBuilds(repos []models.ExtendedRepository) ([]mode
 			r.RequiredBuilds = builds
 			createdRepos = append(createdRepos, r)
 		}
-	}
-
-	if len(errs) > 0 {
-		return createdRepos, fmt.Errorf("errors occurred creating required builds: %s", strings.Join(errs, "; "))
 	}
 
 	return createdRepos, nil

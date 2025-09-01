@@ -111,6 +111,12 @@ func (c *Client) CreateWebhooks(repos []models.ExtendedRepository) ([]models.Ext
 			mu.Lock()
 			newRepos[j.repoIndex].Webhooks = append(newRepos[j.repoIndex].Webhooks, *created)
 			mu.Unlock()
+
+			c.logger.Info("Created webhook",
+				"project", j.repo.ProjectKey,
+				"repo", j.repo.RepositorySlug,
+				"id", utils.SafeValue(created.Id),
+				"name", utils.SafeValue(created.Name))
 		}
 	}
 
@@ -140,13 +146,13 @@ func (c *Client) CreateWebhooks(repos []models.ExtendedRepository) ([]models.Ext
 	}
 
 	// filter newRepos: only those with at least one webhook
-	filteredRepos := []models.ExtendedRepository{}
+	createdRepos := []models.ExtendedRepository{}
 	for _, r := range newRepos {
 		if len(r.Webhooks) > 0 {
-			filteredRepos = append(filteredRepos, r)
+			createdRepos = append(createdRepos, r)
 		}
 	}
-	return filteredRepos, firstErr
+	return createdRepos, firstErr
 }
 
 // UpdateWebhook updates existing webhooks concurrently by updating all webhooks listed in repos.Webhooks
