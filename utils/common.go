@@ -47,13 +47,11 @@ func ParseColumnsToLower(columns string) []string {
 }
 
 func isSafePath(path string) bool {
-
-	if strings.Contains(path, "..") || strings.Contains(path, "~") {
+	cleanPath := filepath.Clean(path)
+	if strings.Contains(cleanPath, "..") || strings.Contains(cleanPath, "~") {
 		return false
 	}
-
-	cleanPath := filepath.Clean(path)
-	return !filepath.IsAbs(cleanPath) && !strings.HasPrefix(cleanPath, "../")
+	return true
 }
 
 // ParseFile is a universal function that parses YAML or JSON files into the provided struct pointer
