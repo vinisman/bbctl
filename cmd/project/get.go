@@ -26,7 +26,7 @@ func NewGetCmd() *cobra.Command {
 You must specify exactly one of the following options: 
   --key (comma-separated project keys), 
   --all (fetch all projects), 
-  --input (YAML file with a list of projects).`,
+  --input (YAML or JSON file with a list of projects, or '-' to read from stdin).`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Validate mutual exclusivity
 			count := 0
@@ -65,8 +65,8 @@ You must specify exactly one of the following options:
 				}
 			case input != "":
 				var parsed models.ProjectList
-				if err := utils.ParseYAMLFile(input, &parsed); err != nil {
-					return fmt.Errorf("failed to parse YAML file %s: %w", input, err)
+				if err := utils.ParseFile(input, &parsed); err != nil {
+					return fmt.Errorf("failed to parse file %s: %w", input, err)
 				}
 				if len(parsed.Projects) == 0 {
 					return fmt.Errorf("no projects found in file %s", input)
@@ -96,8 +96,7 @@ You must specify exactly one of the following options:
 		`Output format: plain|yaml|json.
 The "yaml" and "json" formats print the full available structure with all fields.`,
 	)
-	cmd.Flags().StringVarP(&input, "input", "i", "", `Path to YAML file with projects to get.
-You can also specify "-" to read the list of projects from stdin.
+	cmd.Flags().StringVarP(&input, "input", "i", "", `Path to YAML or JSON file with projects to get, or "-" to read from stdin.
 Example file content:
   projects:
     - projectKey1

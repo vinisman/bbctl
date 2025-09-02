@@ -22,7 +22,7 @@ func NewCreateCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "create",
 		Short: "Create a project",
-		Long: `Create one or more Bitbucket projects either from CLI flags or from a YAML file.
+		Long: `Create one or more Bitbucket projects either from CLI flags or from a YAML or JSON file.
 
 Note: If you encounter a 401 Unauthorized error, please use your username and password for authentication instead of a token. 
 This is required for older Bitbucket versions that do not support token-based operations.`,
@@ -52,11 +52,11 @@ This is required for older Bitbucket versions that do not support token-based op
 				projects = []openapi.RestProject{p}
 			}
 
-			// Case 2: create from YAML file
+			// Case 2: create from YAML or JSON file
 			if input != "" {
 				var parsed models.ProjectYaml
-				if err := utils.ParseYAMLFile(input, &parsed); err != nil {
-					return fmt.Errorf("failed to parse YAML file %s: %w", input, err)
+				if err := utils.ParseFile(input, &parsed); err != nil {
+					return fmt.Errorf("failed to parse file %s: %w", input, err)
 				}
 
 				if len(parsed.Projects) == 0 {
@@ -80,7 +80,7 @@ This is required for older Bitbucket versions that do not support token-based op
 	cmd.Flags().StringVarP(&key, "key", "k", "", "Project key (required if --input is not specified)")
 	cmd.Flags().StringVar(&name, "name", "", "Project name")
 	cmd.Flags().StringVar(&description, "description", "", "Project description")
-	cmd.Flags().StringVarP(&input, "input", "i", "", `Path to YAML file with projects to create, or '-' to read from stdin.
+	cmd.Flags().StringVarP(&input, "input", "i", "", `Path to YAML or JSON file with projects to create, or '-' to read from stdin.
 Example file content:
 projects:
   - key: Project1

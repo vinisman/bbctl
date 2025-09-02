@@ -46,8 +46,8 @@ You must specify either:
 				var parsed struct {
 					Repositories []models.ExtendedRepository `yaml:"repositories"`
 				}
-				if err := utils.ParseYAMLFile(input, &parsed); err != nil {
-					return fmt.Errorf("failed to parse YAML file %s: %w", input, err)
+				if err := utils.ParseFile(input, &parsed); err != nil {
+					return fmt.Errorf("failed to parse file %s: %w", input, err)
 				}
 				if len(parsed.Repositories) == 0 {
 					return fmt.Errorf("no repositories found in %s", input)
@@ -82,7 +82,7 @@ You must specify either:
 	cmd.Flags().StringVarP(&repositorySlug, "repositorySlug", "s", "", "Slug of the repository (optional, required if --input not used)")
 	cmd.Flags().StringVar(&description, "desc", "", "Repository description (optional)")
 	cmd.Flags().StringVar(&defaultBranch, "default-branch", "", "Default branch name (optional)")
-	cmd.Flags().StringVarP(&input, "input", "i", "", `Path to YAML file with repositories to create. Use '-' to read from stdin.
+	cmd.Flags().StringVarP(&input, "input", "i", "", `Path to YAML or JSON file with repositories to create. Use '-' to read from stdin.
 Example YAML:
 repositories:
   - projectKey: PRJ1

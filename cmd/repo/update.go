@@ -43,7 +43,7 @@ or multiple repositories defined in a YAML file with --input.`,
 				var parsed struct {
 					Repositories []models.ExtendedRepository `yaml:"repositories"`
 				}
-				if err := utils.ParseYAMLFile(input, &parsed); err != nil {
+				if err := utils.ParseFile(input, &parsed); err != nil {
 					return err
 				}
 				return client.UpdateRepos(parsed.Repositories)
@@ -85,7 +85,7 @@ or multiple repositories defined in a YAML file with --input.`,
 	cmd.Flags().StringVar(&name, "name", "", "Repository name (optional)")
 	cmd.Flags().StringVar(&description, "desc", "", "Repository description (optional)")
 	cmd.Flags().StringVar(&defaultBranch, "default-branch", "", "Default branch name (optional)")
-	cmd.Flags().StringVarP(&input, "input", "i", "", `Path to YAML file with repositories to update, or '-' to read from stdin.
+	cmd.Flags().StringVarP(&input, "input", "i", "", `Path to YAML or JSON file with repositories to update, or '-' to read from stdin.
 If specified, multiple repositories can be updated in a single operation.
 The file must contain a list of repositories with at least the "projectKey" and "repositorySlug" fields.
 Other fields are optional and will be updated only if provided.

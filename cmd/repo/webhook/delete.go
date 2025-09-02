@@ -37,8 +37,8 @@ func DeleteWebHookCmd() *cobra.Command {
 			if input != "" {
 				var parsed models.RepositoryYaml
 
-				if err := utils.ParseYAMLFile(input, &parsed); err != nil {
-					return fmt.Errorf("failed to parse YAML file: %w", err)
+				if err := utils.ParseFile(input, &parsed); err != nil {
+					return fmt.Errorf("failed to parse file: %w", err)
 				}
 
 				if len(parsed.Repositories) == 0 {
@@ -92,7 +92,7 @@ func DeleteWebHookCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&input, "input", "i", "", `Path to YAML file with repositories and webhooks to delete (use '-' to read YAML from stdin
+	cmd.Flags().StringVarP(&input, "input", "i", "", `Path to YAML or JSON file with repositories and webhooks to delete (use '-' to read from stdin)
 Example:
   repositories:
     - projectKey: DEV

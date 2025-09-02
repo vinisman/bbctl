@@ -45,7 +45,7 @@ or --input for a YAML file containing multiple forks.`,
 				var parsed struct {
 					Repositories []models.ExtendedRepository `yaml:"repositories"`
 				}
-				if err := utils.ParseYAMLFile(input, &parsed); err != nil {
+				if err := utils.ParseFile(input, &parsed); err != nil {
 					return fmt.Errorf("failed to parse YAML file: %w", err)
 				}
 				return client.ForkRepos(parsed.Repositories)
@@ -100,7 +100,7 @@ or --input for a YAML file containing multiple forks.`,
 	cmd.Flags().StringVar(&newName, "newName", "", "New name of the forked repository (optional, defaults to current repository name if not set)")
 	cmd.Flags().StringVar(&newDefaultBranch, "newDefaultBranch", "", "New default branch for the forked repository (optional)")
 	cmd.Flags().StringVar(&newDescription, "newDescription", "", "New description for the forked repository (optional)")
-	cmd.Flags().StringVarP(&input, "input", "i", "", `Path to YAML file with forks to create, or '-' to read from stdin.
+	cmd.Flags().StringVarP(&input, "input", "i", "", `Path to YAML or JSON file with forks to create, or '-' to read from stdin.
 Example YAML structure:
 repositories:
   - projectKey: PRJ1

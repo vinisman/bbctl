@@ -28,8 +28,8 @@ so make sure to use unique names to avoid confusion or accidental overwrites.`,
 			}
 
 			var parsed models.RepositoryYaml
-			if err := utils.ParseYAMLFile(input, &parsed); err != nil {
-				return fmt.Errorf("failed to parse YAML file: %w", err)
+			if err := utils.ParseFile(input, &parsed); err != nil {
+				return fmt.Errorf("failed to parse input file: %w", err)
 			}
 
 			if len(parsed.Repositories) == 0 {
@@ -65,7 +65,7 @@ so make sure to use unique names to avoid confusion or accidental overwrites.`,
 		},
 	}
 
-	cmd.Flags().StringVarP(&input, "input", "i", "", `Path to YAML file or '-' to read from stdin
+	cmd.Flags().StringVarP(&input, "input", "i", "", `Path to YAML or JSON file or '-' to read from stdin
 Example:
 repositories:
   - projectKey: DEV

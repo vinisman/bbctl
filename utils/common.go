@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -55,34 +56,52 @@ func isSafePath(path string) bool {
 	return !filepath.IsAbs(cleanPath) && !strings.HasPrefix(cleanPath, "../")
 }
 
-// ParseYAMLFile reads YAML file and unmarshals into provided struct pointer
-func ParseYAMLFile[T any](filePath string, out *T) error {
+// ParseFile is a universal function that parses YAML or JSON files into the provided struct pointer
+func ParseFile[T any](filePath string, out *T) error {
 	if filePath == "-" {
-		decoder := yaml.NewDecoder(os.Stdin)
-		if err := decoder.Decode(out); err != nil {
-			return fmt.Errorf("failed to parse YAML from stdin: %w", err)
+		// Read from stdin
+		data, err := os.ReadFile("/dev/stdin") // alternatively, use io.ReadAll(os.Stdin)
+		if err != nil {
+			return fmt.Errorf("failed to read from stdin: %w", err)
 		}
-		return nil
+		return parseData(filePath, data, out)
 	}
 
+	// Validate the file path
 	if !isSafePath(filePath) {
 		return fmt.Errorf("invalid file path")
 	}
 
 	cleanPath := filepath.Clean(filePath)
-	if strings.Contains(cleanPath, "..") || strings.HasPrefix(cleanPath, "/") {
-		return fmt.Errorf("invalid file path")
-	}
-
 	data, err := os.ReadFile(cleanPath)
 	if err != nil {
 		return fmt.Errorf("failed to read file %s: %w", filePath, err)
 	}
 
-	if err := yaml.Unmarshal(data, out); err != nil {
-		return fmt.Errorf("failed to parse YAML file %s: %w", filePath, err)
-	}
+	// Parse the data based on extension
+	return parseData(filePath, data, out)
+}
 
+// parseData parses the byte slice into the struct based on file extension
+func parseData[T any](filePath string, data []byte, out *T) error {
+	ext := strings.ToLower(filepath.Ext(filePath))
+	switch ext {
+	case ".yaml", ".yml":
+		// Parse YAML
+		if err := yaml.Unmarshal(data, out); err != nil {
+			return fmt.Errorf("failed to parse YAML file %s: %w", filePath, err)
+		}
+	case ".json":
+		// Parse JSON
+		if err := json.Unmarshal(data, out); err != nil {
+			return fmt.Errorf("failed to parse JSON file %s: %w", filePath, err)
+		}
+	default:
+		// Fallback: try YAML
+		if err := yaml.Unmarshal(data, out); err != nil {
+			return fmt.Errorf("unknown format or failed to parse YAML/JSON file %s: %w", filePath, err)
+		}
+	}
 	return nil
 }
 
