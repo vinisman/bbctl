@@ -32,8 +32,14 @@ so make sure to use unique names to avoid confusion or accidental overwrites.`,
 				return fmt.Errorf("failed to parse input file: %w", err)
 			}
 
+			client, err := bitbucket.NewClient(context.Background())
+			if err != nil {
+				return err
+			}
+
 			if len(parsed.Repositories) == 0 {
-				return fmt.Errorf("no repositories found in file %s", input)
+				client.Logger.Info("no repositories found in file", "file", input)
+				return nil
 			}
 
 			hasWebhooks := false
@@ -45,11 +51,6 @@ so make sure to use unique names to avoid confusion or accidental overwrites.`,
 			}
 			if !hasWebhooks {
 				return fmt.Errorf("no webhooks defined in file %s", input)
-			}
-
-			client, err := bitbucket.NewClient(context.Background())
-			if err != nil {
-				return err
 			}
 
 			updatedRepos, err := client.CreateWebhooks(parsed.Repositories)
