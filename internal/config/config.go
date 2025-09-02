@@ -1,7 +1,6 @@
 package config
 
 import (
-	"fmt"
 	"log/slog"
 	"os"
 	"strconv"
@@ -44,14 +43,6 @@ func LoadConfig() (*Config, error) {
 	token := os.Getenv("BITBUCKET_TOKEN")
 	username := os.Getenv("BITBUCKET_USERNAME")
 	password := os.Getenv("BITBUCKET_PASSWORD")
-
-	if baseURL == "" {
-		return nil, fmt.Errorf("BITBUCKET_BASE_URL is required")
-	}
-
-	if token == "" && (username == "" || password == "") {
-		return nil, fmt.Errorf("either BITBUCKET_TOKEN or BITBUCKET_USERNAME + BITBUCKET_PASSWORD must be set")
-	}
 
 	cfg := &Config{
 		BaseURL:          baseURL,
