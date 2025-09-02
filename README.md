@@ -10,7 +10,7 @@ It provides streamlined support for creating, deleting, updating, and retrieving
 - Parallel processing for high-performance bulk operations
 - YAML/JSON output for full GitOps compatibility
 - Easy configuration via `.env` file
-- Support reading YAML from stdin (`-`) for all relevant commands
+- Support reading YAML/JSON from stdin (`-`) for all relevant commands
 
 ## Configuration
 Add a `.env` properties file as shown below, or provide configuration via command-line flags.  

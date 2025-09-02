@@ -36,7 +36,7 @@ func NewDeleteCmd() *cobra.Command {
 			if input != "" {
 				var parsed models.RepositoryYaml
 
-				if err := utils.ParseYAMLFile(input, &parsed); err != nil {
+				if err := utils.ParseFile(input, &parsed); err != nil {
 					return err
 				}
 				if len(parsed.Repositories) == 0 {
@@ -67,7 +67,7 @@ func NewDeleteCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&repositorySlug, "repositorySlug", "s", "", "Identifier of the current repository in format <projectKey>/<repositorySlug> (required if --input not used)")
-	cmd.Flags().StringVarP(&input, "input", "i", "", `Path to YAML file with repositories to delete, or '-' to read from stdin.
+	cmd.Flags().StringVarP(&input, "input", "i", "", `Path to YAML or JSON file with repositories to delete, or '-' to read from stdin.
 Example file content:
 repositories:
   - projectKey: PRJ1

@@ -22,7 +22,7 @@ func NewUpdateCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "update",
 		Short: "Update a project",
-		Long:  `Update one or more Bitbucket projects either from CLI flags or from a YAML file.`,
+		Long:  `Update one or more Bitbucket projects either from CLI flags or from a YAML or JSON file.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Validate input
 			if (key != "" && input != "") || (key == "" && input == "") {
@@ -49,11 +49,11 @@ func NewUpdateCmd() *cobra.Command {
 				projects = []openapi.RestProject{p}
 			}
 
-			// Case 2: update from YAML file
+			// Case 2: update from YAML or JSON file
 			if input != "" {
 				var parsed models.ProjectYaml
-				if err := utils.ParseYAMLFile(input, &parsed); err != nil {
-					return fmt.Errorf("failed to parse YAML file %s: %w", input, err)
+				if err := utils.ParseFile(input, &parsed); err != nil {
+					return fmt.Errorf("failed to parse file %s: %w", input, err)
 				}
 
 				if len(parsed.Projects) == 0 {
@@ -79,7 +79,7 @@ func NewUpdateCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&key, "key", "k", "", "Project key (required if --input is not specified)")
 	cmd.Flags().StringVar(&name, "name", "", "Project name (required)")
 	cmd.Flags().StringVar(&description, "des", "", "Project description")
-	cmd.Flags().StringVarP(&input, "input", "i", "", `Path to YAML file with projects to update, or '-' to read from stdin.
+	cmd.Flags().StringVarP(&input, "input", "i", "", `Path to YAML or JSON file with projects to update, or '-' to read from stdin.
 Example file content:
 projects:
   - key: DEMO

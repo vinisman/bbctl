@@ -42,10 +42,10 @@ func NewDeleteCmd() *cobra.Command {
 				}
 			}
 
-			// Case 2: keys from YAML
+			// Case 2: keys from YAML or JSON
 			if input != "" {
 				var parsed models.ProjectList
-				if err := utils.ParseYAMLFile(input, &parsed); err != nil {
+				if err := utils.ParseFile(input, &parsed); err != nil {
 					return err
 				}
 				keys = parsed.Projects
@@ -62,7 +62,7 @@ func NewDeleteCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&key, "key", "k", "", "Comma-separated project keys (e.g. PRJ1,PRJ2)")
-	cmd.Flags().StringVarP(&input, "input", "i", "", `Path to YAML file with projects to delete. Use '-' to read from stdin.
+	cmd.Flags().StringVarP(&input, "input", "i", "", `Path to YAML or JSON file with projects to delete. Use '-' to read from stdin.
 Example file content:
   projects:
     - PRJ1

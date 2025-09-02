@@ -94,7 +94,7 @@ Only one of these options should be used at a time.`,
 
 			if input != "" {
 				var parsed models.RepositoryYaml
-				if err := utils.ParseYAMLFile(input, &parsed); err != nil {
+				if err := utils.ParseFile(input, &parsed); err != nil {
 					return err
 				}
 				for _, repo := range parsed.Repositories {
@@ -175,7 +175,7 @@ Only one of these options should be used at a time.`,
 	  webhooks
 	  required-builds
 	`)
-	cmd.Flags().StringVarP(&input, "input", "i", "", "Path to input YAML file containing repositories (use '-' to read from stdin)")
+	cmd.Flags().StringVarP(&input, "input", "i", "", "Path to input YAML or JSON file containing repositories (use '-' to read from stdin)")
 
 	return cmd
 }

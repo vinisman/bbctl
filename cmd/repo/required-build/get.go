@@ -30,7 +30,7 @@ func GetRequiredBuildCmd() *cobra.Command {
 
 			if input != "" {
 				var parsed models.RepositoryYaml
-				if err := utils.ParseYAMLFile(input, &parsed); err != nil {
+				if err := utils.ParseFile(input, &parsed); err != nil {
 					return err
 				}
 				repositories = parsed.Repositories
@@ -66,7 +66,7 @@ func GetRequiredBuildCmd() *cobra.Command {
 	}
 	cmd.Flags().StringVarP(&repositorySlug, "repositorySlug", "s", "", "Repository identifiers in format <projectKey>/<repositorySlug>, multiple repositories can be comma-separated")
 	cmd.Flags().StringVarP(&output, "output", "o", "plain", "Output format: plain|yaml|json")
-	cmd.Flags().StringVarP(&input, "input", "i", "", `Input YAML file or '-' for stdin containing repositories
+	cmd.Flags().StringVarP(&input, "input", "i", "", `Input YAML or JSON file or '-' for stdin containing repositories
 	Example:
 repositories:
   - projectKey: project_1

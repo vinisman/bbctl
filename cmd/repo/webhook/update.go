@@ -23,8 +23,8 @@ func UpdateWebHookCmd() *cobra.Command {
 			}
 
 			var parsed models.RepositoryYaml
-			if err := utils.ParseYAMLFile(input, &parsed); err != nil {
-				return fmt.Errorf("failed to parse YAML file: %w", err)
+			if err := utils.ParseFile(input, &parsed); err != nil {
+				return fmt.Errorf("failed to parse file: %w", err)
 			}
 
 			if len(parsed.Repositories) == 0 {
@@ -45,7 +45,7 @@ func UpdateWebHookCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&input, "input", "i", "", `Path to YAML file with webhooks to update or '-' to read from stdin
+	cmd.Flags().StringVarP(&input, "input", "i", "", `Path to YAML or JSON file with webhooks to update or '-' to read from stdin
 Example:
   repositories:
     - projectKey: DEV
