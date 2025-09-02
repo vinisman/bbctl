@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/vinisman/bbctl/internal/config"
 	"gopkg.in/yaml.v3"
 )
 
@@ -48,10 +49,25 @@ func ParseColumnsToLower(columns string) []string {
 
 func isSafePath(path string) bool {
 	cleanPath := filepath.Clean(path)
+	decision := true
 	if strings.Contains(cleanPath, "..") || strings.Contains(cleanPath, "~") {
-		return false
+		decision = false
 	}
-	return true
+	config.GlobalLogger.Debug("isSafePath check",
+		"original_path", path,
+		"cleaned_path", cleanPath,
+		"result", decision,
+	)
+	return decision
+}
+
+func normalizePath(path string) string {
+	if strings.HasPrefix(path, "/tmp/") {
+		tempDir := os.TempDir()
+		rest := strings.TrimPrefix(path, "/tmp")
+		return filepath.Join(tempDir, rest)
+	}
+	return path
 }
 
 // ParseFile is a universal function that parses YAML or JSON files into the provided struct pointer
@@ -64,6 +80,9 @@ func ParseFile[T any](filePath string, out *T) error {
 		}
 		return parseData(filePath, data, out)
 	}
+
+	// Normalize the file path
+	filePath = normalizePath(filePath)
 
 	// Validate the file path
 	if !isSafePath(filePath) {
