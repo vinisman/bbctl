@@ -42,7 +42,11 @@ func DeleteWebHookCmd() *cobra.Command {
 				}
 
 				if len(parsed.Repositories) == 0 {
-					return fmt.Errorf("no repositories found in file %s", input)
+					client, _ := bitbucket.NewClient(context.Background())
+					if client != nil {
+						client.Logger.Info("no repositories found in file", "file", input)
+					}
+					return nil
 				}
 
 				repositories = parsed.Repositories

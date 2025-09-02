@@ -32,7 +32,11 @@ so make sure to use unique names to avoid confusion or accidental overwrites.`,
 			}
 
 			if len(parsed.Repositories) == 0 {
-				return fmt.Errorf("no required-builds found in file %s", input)
+				client, _ := bitbucket.NewClient(context.Background())
+				if client != nil {
+					client.Logger.Info("no required-builds found in file", "file", input)
+				}
+				return nil
 			}
 
 			hasRequiredBuilds := false
