@@ -58,18 +58,6 @@ so make sure to use unique names to avoid confusion or accidental overwrites.`,
 				client.Logger.Error(err.Error())
 			}
 
-			for _, repo := range updatedRepos {
-				if repo.Webhooks != nil {
-					for _, wh := range *repo.Webhooks {
-						if wh.Id != nil {
-							fmt.Println("Webhook ID:", *wh.Id) // разыменовываем
-						} else {
-							fmt.Println("Webhook ID: <nil>")
-						}
-					}
-				}
-			}
-
 			if output != "yaml" && output != "json" {
 				return fmt.Errorf("invalid output format: %s, allowed values: yaml, json", output)
 			}
