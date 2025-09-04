@@ -16,10 +16,13 @@ func GetAllProjects(c *Client) ([]openapi.RestProject, error) {
 	)
 
 	for {
-		resp, _, err := c.api.ProjectAPI.GetProjects(c.authCtx).
+		resp, httpResp, err := c.api.ProjectAPI.GetProjects(c.authCtx).
 			Start(start).
 			Limit(float32(c.config.PageSize)).
 			Execute()
+		if err != nil && httpResp != nil {
+			c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+		}
 		if err != nil {
 			c.logger.Error("Failed to fetch projects", "error", err)
 			return nil, err
@@ -55,7 +58,10 @@ func (c *Client) GetProjects(keys []string) ([]openapi.RestProject, error) {
 	for i := 0; i < maxWorkers; i++ {
 		go func() {
 			for j := range jobsCh {
-				resp, _, err := c.api.ProjectAPI.GetProject(c.authCtx, j.key).Execute()
+				resp, httpResp, err := c.api.ProjectAPI.GetProject(c.authCtx, j.key).Execute()
+				if err != nil && httpResp != nil {
+					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+				}
 				if err != nil {
 					c.logger.Error("Failed to fetch project", "key", j.key, "error", err)
 					resultsCh <- result{err: err}
@@ -106,7 +112,10 @@ func (c *Client) DeleteProjects(keys []string) error {
 	for i := 0; i < maxWorkers; i++ {
 		go func() {
 			for k := range jobsCh {
-				_, err := c.api.ProjectAPI.DeleteProject(c.authCtx, k).Execute()
+				httpResp, err := c.api.ProjectAPI.DeleteProject(c.authCtx, k).Execute()
+				if err != nil && httpResp != nil {
+					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+				}
 				if err != nil {
 					resultsCh <- result{key: k, err: err}
 				} else {
@@ -160,7 +169,9 @@ func (c *Client) CreateProjects(projects []openapi.RestProject) error {
 					RestProject(p).
 					Execute()
 				if err != nil {
-					c.logger.Debug("Details", "httpResp", httpResp)
+					if httpResp != nil {
+						c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+					}
 					resultsCh <- result{key: utils.SafeValue(p.Key), err: err}
 				} else {
 					resultsCh <- result{key: utils.SafeValue(created.Key)}
@@ -214,9 +225,12 @@ func (c *Client) UpdateProjects(projects []openapi.RestProject) error {
 					continue
 				}
 
-				updated, _, err := c.api.ProjectAPI.UpdateProject(c.authCtx, *p.Key).
+				updated, httpResp, err := c.api.ProjectAPI.UpdateProject(c.authCtx, *p.Key).
 					RestProject(p).
 					Execute()
+				if err != nil && httpResp != nil {
+					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+				}
 				if err != nil {
 					resultsCh <- result{key: utils.SafeValue(p.Key), err: err}
 				} else {

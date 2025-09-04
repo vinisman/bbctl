@@ -22,10 +22,13 @@ func (c *Client) GetAllReposForProject(projectKey string, options models.Reposit
 	)
 
 	for {
-		resp, _, err := c.api.ProjectAPI.GetRepositories(c.authCtx, projectKey).
+		resp, httpResp, err := c.api.ProjectAPI.GetRepositories(c.authCtx, projectKey).
 			Start(start).
 			Limit(float32(c.config.PageSize)).
 			Execute()
+		if err != nil && httpResp != nil {
+			c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+		}
 		if err != nil {
 			c.logger.Error("Error fetching repositories", "project", projectKey, "error", err)
 			return nil, err
@@ -110,7 +113,10 @@ func (c *Client) GetReposBySlugs(projectKey string, slugs []string, options mode
 			for slug := range jobsCh {
 				var r models.ExtendedRepository
 				if options.Repository {
-					resp, _, err := c.api.ProjectAPI.GetRepository(c.authCtx, projectKey, slug).Execute()
+					resp, httpResp, err := c.api.ProjectAPI.GetRepository(c.authCtx, projectKey, slug).Execute()
+					if err != nil && httpResp != nil {
+						c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+					}
 					if err != nil {
 						c.logger.Error("Error fetching repository", "project", projectKey, "slug", slug, "error", err)
 						resultsCh <- result{err: err}
@@ -219,10 +225,12 @@ func (c *Client) GetDefaultBranch(projectKey, repoSlug string) (string, error) {
 		return "", fmt.Errorf("projectKey and repoSlug must be provided")
 	}
 
-	resp, _, err := c.api.ProjectAPI.
+	resp, httpResp, err := c.api.ProjectAPI.
 		GetDefaultBranch2(c.authCtx, projectKey, repoSlug).
 		Execute()
-
+	if err != nil && httpResp != nil {
+		c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+	}
 	if err != nil {
 		c.logger.Error("Failed to get default branch",
 			"projectKey", projectKey,
@@ -316,7 +324,10 @@ func (c *Client) DeleteRepos(refs []models.ExtendedRepository) error {
 	for i := 0; i < maxWorkers; i++ {
 		go func() {
 			for ref := range jobsCh {
-				_, err := c.api.ProjectAPI.DeleteRepository(c.authCtx, ref.ProjectKey, ref.RepositorySlug).Execute()
+				httpResp, err := c.api.ProjectAPI.DeleteRepository(c.authCtx, ref.ProjectKey, ref.RepositorySlug).Execute()
+				if err != nil && httpResp != nil {
+					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+				}
 				if err != nil {
 					resultsCh <- result{project: ref.ProjectKey, slug: ref.RepositorySlug, err: err}
 				} else {
@@ -378,9 +389,12 @@ func (c *Client) CreateRepos(repos []models.ExtendedRepository) error {
 					continue
 				}
 
-				created, _, err := c.api.ProjectAPI.CreateRepository(c.authCtx, r.ProjectKey).
+				created, httpResp, err := c.api.ProjectAPI.CreateRepository(c.authCtx, r.ProjectKey).
 					RestRepository(*r.RestRepository).
 					Execute()
+				if err != nil && httpResp != nil {
+					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+				}
 				if err != nil {
 					resultsCh <- result{slug: utils.SafeValue(r.RestRepository.Slug), name: utils.SafeValue(r.RestRepository.Name), err: err}
 				} else {
@@ -438,8 +452,10 @@ func (c *Client) UpdateRepos(repos []models.ExtendedRepository) error {
 				updated, httpResp, err := c.api.ProjectAPI.UpdateRepository(c.authCtx, r.ProjectKey, r.RepositorySlug).
 					RestRepository(*r.RestRepository).
 					Execute()
+				if err != nil && httpResp != nil {
+					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+				}
 				if err != nil {
-					c.logger.Debug("Details", "httpResp", httpResp)
 					resultsCh <- result{slug: utils.SafeValue(&r.RepositorySlug), err: err}
 				} else {
 					resultsCh <- result{slug: utils.SafeValue(updated.Slug)}
@@ -504,6 +520,9 @@ func (c *Client) ForkRepos(repos []models.ExtendedRepository) error {
 				createdFork, httpResp, err := c.api.ProjectAPI.ForkRepository(c.authCtx, r.ProjectKey, r.RepositorySlug).
 					RestRepository(*r.RestRepository).
 					Execute()
+				if err != nil && httpResp != nil {
+					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+				}
 				var forkName string
 				if createdFork != nil && createdFork.Name != nil {
 					forkName = *createdFork.Name
@@ -511,7 +530,6 @@ func (c *Client) ForkRepos(repos []models.ExtendedRepository) error {
 					forkName = utils.SafeValue(r.RestRepository.Name)
 				}
 
-				c.logger.Debug("Details", "httpResp", httpResp)
 				resultsCh <- result{
 					forkName:      forkName,
 					sourceProject: r.ProjectKey,
