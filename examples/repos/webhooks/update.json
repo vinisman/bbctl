@@ -1,0 +1,25 @@
+{
+  "repositories": [
+    {
+      "projectKey": "PROJECT_1",
+      "repositorySlug": "repo10",
+      "webhooks": [
+        {
+          "active": false,
+          "configuration": {},
+          "credentials": {
+            "username": "myuser"
+          },
+          "events": [
+            "repo:refs_changed"
+          ],
+          "id": 35,
+          "name": "build-hook",
+          "scopeType": "repository",
+          "sslVerificationRequired": true,
+          "url": "https://TARARARRA/webhook10"
+        }
+      ]
+    }
+  ]
+}

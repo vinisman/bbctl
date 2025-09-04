@@ -61,7 +61,7 @@ or multiple repositories defined in a YAML file with --input.`,
 			repo := models.ExtendedRepository{
 				ProjectKey:     projectKey,
 				RepositorySlug: slug,
-				RestRepository: openapi.RestRepository{
+				RestRepository: &openapi.RestRepository{
 					Slug:        &slug,
 					Name:        utils.OptionalString(name),
 					Description: utils.OptionalString(description),

@@ -3,21 +3,21 @@ package models
 import "github.com/vinisman/bitbucket-sdk-go/openapi"
 
 type WebhookResponse struct {
-	Size       int                   `json:"size"`
-	Limit      int                   `json:"limit"`
-	IsLastPage bool                  `json:"isLastPage"`
-	Values     []openapi.RestWebhook `json:"values"`
-	Start      int                   `json:"start"`
+	Size       int                   `json:"size,omitempty" yaml:"size,omitempty"`
+	Limit      int                   `json:"limit,omitempty" yaml:"limit,omitempty"`
+	IsLastPage bool                  `json:"isLastPage,omitempty" yaml:"isLastPage,omitempty"`
+	Values     []openapi.RestWebhook `json:"values,omitempty" yaml:"values,omitempty"`
+	Start      int                   `json:"start,omitempty" yaml:"start,omitempty"`
 }
 
 // Extended repository struct
 type ExtendedRepository struct {
-	ProjectKey     string                               `yaml:"projectKey,omitempty"`
-	RepositorySlug string                               `yaml:"repositorySlug,omitempty"`
-	RestRepository openapi.RestRepository               `yaml:"repository,omitempty"`
-	Webhooks       []openapi.RestWebhook                `yaml:"webhooks,omitempty"`
-	Manifest       map[string]interface{}               `yaml:"manifest,omitempty"`
-	RequiredBuilds []openapi.RestRequiredBuildCondition `yaml:"requiredBuilds,omitempty"`
+	ProjectKey     string                                `json:"projectKey,omitempty" yaml:"projectKey,omitempty"`
+	RepositorySlug string                                `json:"repositorySlug,omitempty" yaml:"repositorySlug,omitempty"`
+	RestRepository *openapi.RestRepository               `json:"restRepository,omitempty" yaml:"restRepository,omitempty"`
+	Webhooks       *[]openapi.RestWebhook                `json:"webhooks,omitempty" yaml:"webhooks,omitempty"`
+	Manifest       *map[string]interface{}               `json:"manifest,omitempty" yaml:"manifest,omitempty"`
+	RequiredBuilds *[]openapi.RestRequiredBuildCondition `json:"requiredBuilds,omitempty" yaml:"requiredBuilds,omitempty"`
 }
 
 type RepositoryOptions struct {
@@ -30,13 +30,13 @@ type RepositoryOptions struct {
 }
 
 type RepositoryYaml struct {
-	Repositories []ExtendedRepository `yaml:"repositories"`
+	Repositories []ExtendedRepository `json:"repositories,omitempty" yaml:"repositories,omitempty"`
 }
 
 type ProjectYaml struct {
-	Projects []openapi.RestProject `yaml:"projects"`
+	Projects []openapi.RestProject `json:"projects,omitempty" yaml:"projects,omitempty"`
 }
 
 type ProjectList struct {
-	Projects []string `yaml:"projects"`
+	Projects []string `json:"projects,omitempty" yaml:"projects,omitempty"`
 }

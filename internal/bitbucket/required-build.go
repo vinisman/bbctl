@@ -23,7 +23,7 @@ func (c *Client) CreateRequiredBuilds(repos []models.ExtendedRepository) ([]mode
 	// count the total number
 	var total int
 	for _, r := range repos {
-		total += len(r.RequiredBuilds)
+		total += len(*r.RequiredBuilds)
 	}
 
 	jobs := make(chan job, total)
@@ -84,7 +84,7 @@ func (c *Client) CreateRequiredBuilds(repos []models.ExtendedRepository) ([]mode
 
 	// send all jobs to the channel
 	for _, r := range repos {
-		for _, wh := range r.RequiredBuilds {
+		for _, wh := range *r.RequiredBuilds {
 			req := toSetRequest(wh)
 			jobs <- job{repo: r, req: req}
 		}
@@ -108,7 +108,7 @@ func (c *Client) CreateRequiredBuilds(repos []models.ExtendedRepository) ([]mode
 		key := r.ProjectKey + "/" + r.RepositorySlug
 		if builds, ok := createdBuildsMap[key]; ok && len(builds) > 0 {
 			// Assign only the created builds
-			r.RequiredBuilds = builds
+			r.RequiredBuilds = &builds
 			createdRepos = append(createdRepos, r)
 		}
 	}
@@ -128,7 +128,7 @@ func (c *Client) UpdateRequiredBuilds(repos []models.ExtendedRepository) error {
 	// count the total number
 	var total int
 	for _, r := range repos {
-		total += len(r.RequiredBuilds)
+		total += len(*r.RequiredBuilds)
 	}
 
 	jobs := make(chan job, total)
@@ -176,7 +176,7 @@ func (c *Client) UpdateRequiredBuilds(repos []models.ExtendedRepository) error {
 
 	// send all jobs to the channel
 	for _, r := range repos {
-		for _, wh := range r.RequiredBuilds {
+		for _, wh := range *r.RequiredBuilds {
 			if wh.Id != nil {
 				req := toSetRequest(wh)
 				jobs <- job{repo: r, req: req, id: *wh.Id}
@@ -211,7 +211,7 @@ func (c *Client) DeleteRequiredBuilds(repos []models.ExtendedRepository) error {
 	// count the total number
 	var total int
 	for _, r := range repos {
-		total += len(r.RequiredBuilds)
+		total += len(*r.RequiredBuilds)
 	}
 
 	jobs := make(chan job, total)
@@ -255,7 +255,7 @@ func (c *Client) DeleteRequiredBuilds(repos []models.ExtendedRepository) error {
 
 	// send all jobs to the channel
 	for _, r := range repos {
-		for _, wh := range r.RequiredBuilds {
+		for _, wh := range *r.RequiredBuilds {
 			if wh.Id != nil {
 				jobs <- job{repo: r, id: *wh.Id}
 			}
@@ -322,7 +322,7 @@ func (c *Client) GetRequiredBuilds(repos []models.ExtendedRepository) ([]models.
 			if resp == nil || resp.Values == nil {
 				j.repo.RequiredBuilds = nil
 			} else {
-				j.repo.RequiredBuilds = resp.Values
+				j.repo.RequiredBuilds = &resp.Values
 			}
 
 			// Update the repos slice with the updated repo (with RequiredBuilds)

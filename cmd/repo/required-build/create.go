@@ -41,7 +41,7 @@ so make sure to use unique names to avoid confusion or accidental overwrites.`,
 
 			hasRequiredBuilds := false
 			for _, repo := range parsed.Repositories {
-				if len(repo.RequiredBuilds) > 0 {
+				if len(*repo.RequiredBuilds) > 0 {
 					hasRequiredBuilds = true
 					break
 				}

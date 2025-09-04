@@ -44,7 +44,7 @@ so make sure to use unique names to avoid confusion or accidental overwrites.`,
 
 			hasWebhooks := false
 			for _, repo := range parsed.Repositories {
-				if len(repo.Webhooks) > 0 {
+				if len(*repo.Webhooks) > 0 {
 					hasWebhooks = true
 					break
 				}
@@ -56,6 +56,18 @@ so make sure to use unique names to avoid confusion or accidental overwrites.`,
 			updatedRepos, err := client.CreateWebhooks(parsed.Repositories)
 			if err != nil {
 				client.Logger.Error(err.Error())
+			}
+
+			for _, repo := range updatedRepos {
+				if repo.Webhooks != nil {
+					for _, wh := range *repo.Webhooks {
+						if wh.Id != nil {
+							fmt.Println("Webhook ID:", *wh.Id) // разыменовываем
+						} else {
+							fmt.Println("Webhook ID: <nil>")
+						}
+					}
+				}
 			}
 
 			if output != "yaml" && output != "json" {

@@ -47,7 +47,7 @@ func (c *Client) GetWebhooks(repos []models.ExtendedRepository) ([]models.Extend
 			continue
 		}
 
-		repos[i].Webhooks = webhooksResp.Values
+		repos[i].Webhooks = &webhooksResp.Values
 	}
 
 	if len(errs) > 0 {
@@ -70,7 +70,7 @@ func (c *Client) CreateWebhooks(repos []models.ExtendedRepository) ([]models.Ext
 	// count the total number of webhook tasks
 	var total int
 	for _, r := range repos {
-		total += len(r.Webhooks)
+		total += len(*r.Webhooks)
 	}
 
 	jobs := make(chan job, total)
@@ -83,7 +83,7 @@ func (c *Client) CreateWebhooks(repos []models.ExtendedRepository) ([]models.Ext
 	for i := range repos {
 		newRepos[i].ProjectKey = repos[i].ProjectKey
 		newRepos[i].RepositorySlug = repos[i].RepositorySlug
-		newRepos[i].Webhooks = make([]openapi.RestWebhook, 0)
+		newRepos[i].Webhooks = &[]openapi.RestWebhook{}
 	}
 
 	worker := func() {
@@ -109,7 +109,7 @@ func (c *Client) CreateWebhooks(repos []models.ExtendedRepository) ([]models.Ext
 			}
 
 			mu.Lock()
-			newRepos[j.repoIndex].Webhooks = append(newRepos[j.repoIndex].Webhooks, *created)
+			*newRepos[j.repoIndex].Webhooks = append(*newRepos[j.repoIndex].Webhooks, *created)
 			mu.Unlock()
 
 			c.logger.Info("Created webhook",
@@ -128,7 +128,7 @@ func (c *Client) CreateWebhooks(repos []models.ExtendedRepository) ([]models.Ext
 
 	// send all jobs to the channel
 	for i, r := range repos {
-		for _, wh := range r.Webhooks {
+		for _, wh := range *r.Webhooks {
 			jobs <- job{repoIndex: i, repo: r, webhook: wh}
 		}
 	}
@@ -148,7 +148,7 @@ func (c *Client) CreateWebhooks(repos []models.ExtendedRepository) ([]models.Ext
 	// filter newRepos: only those with at least one webhook
 	createdRepos := []models.ExtendedRepository{}
 	for _, r := range newRepos {
-		if len(r.Webhooks) > 0 {
+		if len(*r.Webhooks) > 0 {
 			createdRepos = append(createdRepos, r)
 		}
 	}
@@ -167,7 +167,7 @@ func (c *Client) UpdateWebhooks(repos []models.ExtendedRepository) error {
 	// count total tasks
 	var total int
 	for _, r := range repos {
-		total += len(r.Webhooks)
+		total += len(*r.Webhooks)
 	}
 
 	jobs := make(chan job, total)
@@ -210,7 +210,7 @@ func (c *Client) UpdateWebhooks(repos []models.ExtendedRepository) error {
 
 	// send all jobs to the channel
 	for _, r := range repos {
-		for _, wh := range r.Webhooks {
+		for _, wh := range *r.Webhooks {
 			jobs <- job{repo: r, webhook: wh}
 		}
 	}
@@ -243,7 +243,7 @@ func (c *Client) DeleteWebhooks(repos []models.ExtendedRepository) error {
 	// count total tasks
 	var total int
 	for _, r := range repos {
-		total += len(r.Webhooks)
+		total += len(*r.Webhooks)
 	}
 
 	jobs := make(chan job, total)
@@ -296,7 +296,7 @@ func (c *Client) DeleteWebhooks(repos []models.ExtendedRepository) error {
 
 	// send all jobs to the channel
 	for _, r := range repos {
-		for _, wh := range r.Webhooks {
+		for _, wh := range *r.Webhooks {
 			jobs <- job{repo: r, webhook: wh}
 		}
 	}

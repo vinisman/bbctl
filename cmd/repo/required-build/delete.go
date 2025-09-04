@@ -72,7 +72,7 @@ func DeleteRequiredBuildCmd() *cobra.Command {
 					{
 						ProjectKey:     project,
 						RepositorySlug: repo,
-						RequiredBuilds: requiredBuilds,
+						RequiredBuilds: &requiredBuilds,
 					},
 				}
 			}

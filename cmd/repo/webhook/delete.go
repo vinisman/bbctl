@@ -77,7 +77,7 @@ func DeleteWebHookCmd() *cobra.Command {
 					{
 						ProjectKey:     projectKey,
 						RepositorySlug: repositorySlug,
-						Webhooks:       webhooks,
+						Webhooks:       &webhooks,
 					},
 				}
 			}

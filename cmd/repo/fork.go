@@ -82,7 +82,7 @@ or --input for a YAML file containing multiple forks.`,
 			repo := models.ExtendedRepository{
 				ProjectKey:     sourceProjectKey,
 				RepositorySlug: sourceSlug,
-				RestRepository: restRepo,
+				RestRepository: &restRepo,
 			}
 
 			err = client.ForkRepos([]models.ExtendedRepository{repo})
