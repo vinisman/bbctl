@@ -116,13 +116,21 @@ func (c *Client) CreateRequiredBuilds(repos []models.ExtendedRepository) ([]mode
 	return createdRepos, nil
 }
 
-func (c *Client) UpdateRequiredBuilds(repos []models.ExtendedRepository) error {
+func (c *Client) UpdateRequiredBuilds(repos []models.ExtendedRepository) ([]models.ExtendedRepository, error) {
 	maxWorkers := config.GlobalMaxWorkers
 
+	updatedRepos := make([]models.ExtendedRepository, len(repos))
+	for i := range repos {
+		updatedRepos[i].ProjectKey = repos[i].ProjectKey
+		updatedRepos[i].RepositorySlug = repos[i].RepositorySlug
+		updatedRepos[i].RequiredBuilds = &[]openapi.RestRequiredBuildCondition{}
+	}
+
 	type job struct {
-		repo models.ExtendedRepository
-		req  openapi.RestRequiredBuildConditionSetRequest
-		id   int64
+		repoIndex int
+		repo      models.ExtendedRepository
+		req       openapi.RestRequiredBuildConditionSetRequest
+		id        int64
 	}
 
 	// count the total number
@@ -135,6 +143,7 @@ func (c *Client) UpdateRequiredBuilds(repos []models.ExtendedRepository) error {
 	errCh := make(chan error, total)
 
 	var wg sync.WaitGroup
+	var mu sync.Mutex
 
 	worker := func() {
 		defer wg.Done()
@@ -165,6 +174,12 @@ func (c *Client) UpdateRequiredBuilds(repos []models.ExtendedRepository) error {
 				"project", j.repo.ProjectKey,
 				"slug", j.repo.RepositorySlug,
 				"buildKey", buildKey)
+
+			if updated != nil {
+				mu.Lock()
+				*updatedRepos[j.repoIndex].RequiredBuilds = append(*updatedRepos[j.repoIndex].RequiredBuilds, *updated)
+				mu.Unlock()
+			}
 		}
 	}
 
@@ -175,11 +190,11 @@ func (c *Client) UpdateRequiredBuilds(repos []models.ExtendedRepository) error {
 	}
 
 	// send all jobs to the channel
-	for _, r := range repos {
+	for i, r := range repos {
 		for _, wh := range *r.RequiredBuilds {
 			if wh.Id != nil {
 				req := toSetRequest(wh)
-				jobs <- job{repo: r, req: req, id: *wh.Id}
+				jobs <- job{repoIndex: i, repo: r, req: req, id: *wh.Id}
 			}
 		}
 	}
@@ -188,16 +203,23 @@ func (c *Client) UpdateRequiredBuilds(repos []models.ExtendedRepository) error {
 	wg.Wait()
 	close(errCh)
 
-	// collect all errors
-	var errs []string
+	// collect first error only
+	var firstErr error
 	for e := range errCh {
-		errs = append(errs, e.Error())
-	}
-	if len(errs) > 0 {
-		return fmt.Errorf("errors occurred updating required builds: %s", strings.Join(errs, "; "))
+		if firstErr == nil {
+			firstErr = e
+		}
 	}
 
-	return nil
+	// filter updatedRepos to only those with len(*RequiredBuilds) > 0
+	var filteredRepos []models.ExtendedRepository
+	for _, r := range updatedRepos {
+		if r.RequiredBuilds != nil && len(*r.RequiredBuilds) > 0 {
+			filteredRepos = append(filteredRepos, r)
+		}
+	}
+
+	return filteredRepos, firstErr
 }
 
 func (c *Client) DeleteRequiredBuilds(repos []models.ExtendedRepository) error {
