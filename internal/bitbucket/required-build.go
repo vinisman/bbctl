@@ -337,8 +337,18 @@ func (c *Client) GetRequiredBuilds(repos []models.ExtendedRepository) ([]models.
 			if err != nil {
 				if httpResp != nil {
 					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+
+					// Check for specific HTTP status codes
+					if httpResp.StatusCode == 404 {
+						errCh <- fmt.Errorf("repository %s/%s not found (404)", j.repo.ProjectKey, j.repo.RepositorySlug)
+					} else if httpResp.StatusCode == 403 {
+						errCh <- fmt.Errorf("access denied for repository %s/%s (403)", j.repo.ProjectKey, j.repo.RepositorySlug)
+					} else {
+						errCh <- fmt.Errorf("failed to get required builds for %s/%s (HTTP %d): %w", j.repo.ProjectKey, j.repo.RepositorySlug, httpResp.StatusCode, err)
+					}
+				} else {
+					errCh <- fmt.Errorf("failed to get required builds for %s/%s: %w", j.repo.ProjectKey, j.repo.RepositorySlug, err)
 				}
-				errCh <- fmt.Errorf("failed to get required builds for %s/%s: %w", j.repo.ProjectKey, j.repo.RepositorySlug, err)
 				continue
 			}
 

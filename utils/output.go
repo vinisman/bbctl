@@ -222,24 +222,36 @@ func generateRows(current reflect.Value, columnPaths []columnInfo, currentPath [
 		current = current.Elem()
 	}
 
-	// Get all non-array field values at current level
-	nonArrayValues := getNonArrayValues(current, columnPaths, currentPath)
-
 	// Find the next array field to process
 	nextArrayField := findNextArrayField(columnPaths, currentPath)
 	if nextArrayField == "" {
-		// No more arrays to process, return single row
+		// No more arrays to process, get all field values and return single row
+		nonArrayValues := getNonArrayValues(current, columnPaths, currentPath)
 		return []rowData{createRow(nonArrayValues)}
 	}
 
+	// Get all non-array field values at current level
+	nonArrayValues := getNonArrayValues(current, columnPaths, currentPath)
+
 	// Get the array field
 	arrayValue := getFieldValueByPath(current, nextArrayField)
-	if arrayValue == nil || reflect.ValueOf(arrayValue).Kind() != reflect.Slice {
-		// Array field doesn't exist or is not a slice, return row with empty array values
+
+	if arrayValue == nil {
 		return []rowData{createRow(nonArrayValues)}
 	}
 
 	arrayVal := reflect.ValueOf(arrayValue)
+	// Handle pointer to slice
+	if arrayVal.Kind() == reflect.Ptr {
+		if arrayVal.IsNil() {
+			return []rowData{createRow(nonArrayValues)}
+		}
+		arrayVal = arrayVal.Elem()
+	}
+
+	if arrayVal.Kind() != reflect.Slice {
+		return []rowData{createRow(nonArrayValues)}
+	}
 	var rows []rowData
 
 	// Process each item in the array
@@ -327,15 +339,15 @@ func findNextArrayField(columnPaths []columnInfo, currentPath []fieldValue) stri
 	for _, colInfo := range columnPaths {
 		if len(colInfo.parts) > currentLevel {
 			nextPart := colInfo.parts[currentLevel]
+
 			// Check if this part is an array field
 			for _, arrayField := range colInfo.arrayFields {
-				if arrayField == nextPart && currentLevel < len(arrayField) {
+				if arrayField == nextPart {
 					return nextPart
 				}
 			}
 		}
 	}
-
 	return ""
 }
 
