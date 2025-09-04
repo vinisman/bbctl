@@ -34,6 +34,13 @@ func Int32PtrToString(v *int32) string {
 	return fmt.Sprintf("%d", *v)
 }
 
+func Int64PtrToString(v *int64) string {
+	if v == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("%d", *v)
+}
+
 func ParseColumnsToLower(columns string) []string {
 	if columns == "" {
 		return nil

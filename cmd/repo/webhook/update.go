@@ -13,6 +13,7 @@ import (
 // UpdateWebHookCmd returns a cobra command to update webhooks from a YAML file
 func UpdateWebHookCmd() *cobra.Command {
 	var input string
+	var output string
 
 	cmd := &cobra.Command{
 		Use:   "update",
@@ -40,12 +41,27 @@ func UpdateWebHookCmd() *cobra.Command {
 				return err
 			}
 
-			err = client.UpdateWebhooks(parsed.Repositories)
+			updated, err := client.UpdateWebhooks(parsed.Repositories)
 			if err != nil {
 				client.Logger.Error(err.Error())
 			}
+			if len(updated) > 0 {
+				for _, r := range updated {
+					for _, wh := range *r.Webhooks {
+						client.Logger.Info("Updated webhook",
+							"project", r.ProjectKey,
+							"repo", r.RepositorySlug,
+							"id", utils.Int32PtrToString(wh.Id),
+							"name", utils.SafeValue(wh.Name))
+					}
+				}
+			}
 
-			return nil
+			if output != "yaml" && output != "json" {
+				return fmt.Errorf("invalid output format: %s, allowed values: yaml, json", output)
+			}
+
+			return utils.PrintStructured("repositories", updated, output, "")
 		},
 	}
 
@@ -64,6 +80,8 @@ Example:
           scopeType: REPOSITORY
           sslVerificationRequired: true
 `)
+
+	cmd.Flags().StringVarP(&output, "output", "o", "", "Optional path to save updated webhooks as YAML/JSON")
 
 	return cmd
 }

@@ -12,6 +12,7 @@ import (
 
 func UpdateRequiredBuildCmd() *cobra.Command {
 	var input string
+	var output string
 
 	cmd := &cobra.Command{
 		Use:   "update",
@@ -39,11 +40,26 @@ func UpdateRequiredBuildCmd() *cobra.Command {
 				return err
 			}
 
-			err = client.UpdateRequiredBuilds(parsed.Repositories)
+			updated, err := client.UpdateRequiredBuilds(parsed.Repositories)
 			if err != nil {
 				client.Logger.Error(err.Error())
 			}
-			return nil
+			if len(updated) > 0 {
+				for _, r := range updated {
+					for _, rb := range *r.RequiredBuilds {
+						client.Logger.Info("Updated required-build",
+							"project", r.ProjectKey,
+							"repo", r.RepositorySlug,
+							"id", utils.Int64PtrToString(rb.Id),
+							"keys", rb.BuildParentKeys)
+					}
+				}
+			}
+			if output != "yaml" && output != "json" {
+				return fmt.Errorf("invalid output format: %s, allowed values: yaml, json", output)
+			}
+
+			return utils.PrintStructured("repositories", updated, output, "")
 		},
 	}
 
@@ -65,6 +81,7 @@ repositories:
               id: ANY_REF
               name: Any branch
 `)
+	cmd.Flags().StringVarP(&output, "output", "o", "", "Optional path to save updated required-builds as YAML/JSON")
 
 	return cmd
 }
