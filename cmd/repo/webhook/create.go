@@ -44,11 +44,12 @@ so make sure to use unique names to avoid confusion or accidental overwrites.`,
 
 			hasWebhooks := false
 			for _, repo := range parsed.Repositories {
-				if len(*repo.Webhooks) > 0 {
+				if repo.Webhooks != nil && len(*repo.Webhooks) > 0 {
 					hasWebhooks = true
 					break
 				}
 			}
+
 			if !hasWebhooks {
 				return fmt.Errorf("no webhooks defined in file %s", input)
 			}
