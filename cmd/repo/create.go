@@ -58,7 +58,7 @@ You must specify either:
 				repo := models.ExtendedRepository{
 					ProjectKey:     projectKey,
 					RepositorySlug: repositorySlug,
-					RestRepository: openapi.RestRepository{
+					RestRepository: &openapi.RestRepository{
 						Name:          utils.OptionalString(name),
 						Description:   utils.OptionalString(description),
 						ScmId:         utils.OptionalString("git"),

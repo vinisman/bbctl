@@ -34,7 +34,7 @@ func (c *Client) GetAllReposForProject(projectKey string, options models.Reposit
 		if options.Repository {
 			for _, r := range resp.Values {
 				repos = append(repos, models.ExtendedRepository{
-					RestRepository: r,
+					RestRepository: &r,
 					RepositorySlug: *r.Slug,
 					ProjectKey:     projectKey,
 				})
@@ -117,7 +117,7 @@ func (c *Client) GetReposBySlugs(projectKey string, slugs []string, options mode
 						continue
 					}
 					r = models.ExtendedRepository{
-						RestRepository: *resp,
+						RestRepository: resp,
 						ProjectKey:     projectKey,
 						RepositorySlug: slug,
 					}
@@ -379,7 +379,7 @@ func (c *Client) CreateRepos(repos []models.ExtendedRepository) error {
 				}
 
 				created, _, err := c.api.ProjectAPI.CreateRepository(c.authCtx, r.ProjectKey).
-					RestRepository(r.RestRepository).
+					RestRepository(*r.RestRepository).
 					Execute()
 				if err != nil {
 					resultsCh <- result{slug: utils.SafeValue(r.RestRepository.Slug), name: utils.SafeValue(r.RestRepository.Name), err: err}
@@ -436,7 +436,7 @@ func (c *Client) UpdateRepos(repos []models.ExtendedRepository) error {
 				}
 
 				updated, httpResp, err := c.api.ProjectAPI.UpdateRepository(c.authCtx, r.ProjectKey, r.RepositorySlug).
-					RestRepository(r.RestRepository).
+					RestRepository(*r.RestRepository).
 					Execute()
 				if err != nil {
 					c.logger.Debug("Details", "httpResp", httpResp)
@@ -502,7 +502,7 @@ func (c *Client) ForkRepos(repos []models.ExtendedRepository) error {
 				}
 
 				createdFork, httpResp, err := c.api.ProjectAPI.ForkRepository(c.authCtx, r.ProjectKey, r.RepositorySlug).
-					RestRepository(r.RestRepository).
+					RestRepository(*r.RestRepository).
 					Execute()
 				var forkName string
 				if createdFork != nil && createdFork.Name != nil {
@@ -588,7 +588,7 @@ func (c *Client) enrichRepository(r models.ExtendedRepository, projectKey string
 	if options.Manifest && r.RepositorySlug != "" && options.ManifestPath != nil {
 		manifest, err := c.GetManifest(projectKey, r.RepositorySlug, *options.ManifestPath)
 		if err == nil {
-			r.Manifest = manifest
+			r.Manifest = &manifest
 		} else {
 			c.logger.Debug("Failed fetching manifest data",
 				"project", projectKey,
