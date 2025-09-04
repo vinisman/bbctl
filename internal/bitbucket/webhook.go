@@ -100,10 +100,9 @@ func (c *Client) CreateWebhooks(repos []models.ExtendedRepository) ([]models.Ext
 					"project", j.repo.ProjectKey,
 					"repo", j.repo.RepositorySlug,
 					"name", utils.SafeValue(j.webhook.Name))
-				c.logger.Debug("HTTP response details",
-					"status", httpResp.Status,
-					"statusCode", httpResp.StatusCode,
-					"body", httpResp.Body)
+				if httpResp != nil {
+					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+				}
 				errCh <- err
 				continue
 			}
@@ -188,7 +187,9 @@ func (c *Client) UpdateWebhooks(repos []models.ExtendedRepository) error {
 				Execute()
 
 			if err != nil {
-				c.logger.Debug("details", "httpResp", httpResp)
+				if httpResp != nil {
+					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+				}
 				errCh <- fmt.Errorf("failed to update webhook %s in %s/%s: %w", utils.Int32PtrToString(j.webhook.Id), j.repo.ProjectKey, j.repo.RepositorySlug, err)
 				continue
 			}
@@ -273,10 +274,9 @@ func (c *Client) DeleteWebhooks(repos []models.ExtendedRepository) error {
 					"repo", j.repo.RepositorySlug,
 					"id", utils.Int32PtrToString(j.webhook.Id),
 					"error", err)
-				c.logger.Debug("HTTP response",
-					"status", httpResp.Status,
-					"statusCode", httpResp.StatusCode,
-					"body", httpResp.Body)
+				if httpResp != nil {
+					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+				}
 				errCh <- err
 				continue
 			}

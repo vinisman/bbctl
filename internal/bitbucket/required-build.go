@@ -42,8 +42,8 @@ func (c *Client) CreateRequiredBuilds(repos []models.ExtendedRepository) ([]mode
 				RestRequiredBuildConditionSetRequest(j.req).
 				Execute()
 
-			if err != nil {
-				c.logger.Debug("details", "httpResp", httpResp)
+			if err != nil && httpResp != nil {
+				c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
 				c.logger.Error("Failed to create required-build",
 					"project", j.repo.ProjectKey,
 					"slug", j.repo.RepositorySlug,
@@ -144,8 +144,8 @@ func (c *Client) UpdateRequiredBuilds(repos []models.ExtendedRepository) error {
 				RestRequiredBuildConditionSetRequest(j.req).
 				Execute()
 
-			if err != nil {
-				c.logger.Debug("details", "httpResp", httpResp)
+			if err != nil && httpResp != nil {
+				c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
 				errCh <- fmt.Errorf("failed to update required-build %v in %s/%s: %w",
 					j.req.BuildParentKeys,
 					j.repo.ProjectKey, j.repo.RepositorySlug, err)
@@ -227,10 +227,9 @@ func (c *Client) DeleteRequiredBuilds(repos []models.ExtendedRepository) error {
 				Execute()
 
 			if err != nil {
-				c.logger.Debug("HTTP response",
-					"status", httpResp.Status,
-					"statusCode", httpResp.StatusCode,
-					"body", httpResp.Body)
+				if httpResp != nil {
+					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+				}
 				c.logger.Error("Failed to delete required build merge check",
 					"project", j.repo.ProjectKey,
 					"slug", j.repo.RepositorySlug,
@@ -314,7 +313,9 @@ func (c *Client) GetRequiredBuilds(repos []models.ExtendedRepository) ([]models.
 				GetPageOfRequiredBuildsMergeChecks(c.authCtx, j.repo.ProjectKey, j.repo.RepositorySlug).
 				Execute()
 			if err != nil {
-				c.logger.Debug("Failed fetching required builds", "httpResp", httpResp, "error", err)
+				if httpResp != nil {
+					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+				}
 				errCh <- fmt.Errorf("failed to get required builds for %s/%s: %w", j.repo.ProjectKey, j.repo.RepositorySlug, err)
 				continue
 			}
