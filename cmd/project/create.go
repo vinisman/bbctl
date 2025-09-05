@@ -17,6 +17,7 @@ func NewCreateCmd() *cobra.Command {
 		name        string
 		description string
 		input       string
+		output      string
 	)
 
 	cmd := &cobra.Command{
@@ -67,10 +68,18 @@ This is required for older Bitbucket versions that do not support token-based op
 			}
 
 			if len(projects) > 0 {
-				err = client.CreateProjects(projects)
+				createdProjects, err := client.CreateProjects(projects)
 				if err != nil {
 					client.Logger.Error(err.Error())
 					return nil
+				}
+
+				// Only print output if output format is specified
+				if output != "" {
+					if output != "yaml" && output != "json" {
+						return fmt.Errorf("invalid output format: %s, allowed values: yaml, json", output)
+					}
+					return utils.PrintStructured("projects", createdProjects, output, "")
 				}
 			}
 			return nil
@@ -88,6 +97,7 @@ projects:
     description: Example demo project
   - key: Project2
 `)
+	cmd.Flags().StringVarP(&output, "output", "o", "", "Optional output format: yaml or json")
 
 	return cmd
 }

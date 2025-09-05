@@ -36,7 +36,3 @@ type RepositoryYaml struct {
 type ProjectYaml struct {
 	Projects []openapi.RestProject `json:"projects,omitempty" yaml:"projects,omitempty"`
 }
-
-type ProjectList struct {
-	Projects []string `json:"projects,omitempty" yaml:"projects,omitempty"`
-}

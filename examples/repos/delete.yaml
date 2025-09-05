@@ -1,0 +1,3 @@
+repositories:
+  - projectKey: project_1
+    repositorySlug: repo1

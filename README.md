@@ -11,6 +11,7 @@ It provides streamlined support for creating, deleting, updating, and retrieving
 - YAML/JSON output for full GitOps compatibility
 - Easy configuration via `.env` file
 - Support reading YAML/JSON from stdin (`-`) for all relevant commands
+- Unified project file format across all project operations
 
 ## Configuration
 Add a `.env` properties file as shown below, or provide configuration via command-line flags.  
@@ -25,10 +26,10 @@ BITBUCKET_PAGE_SIZE=50
 ## Supported operations
 
 ### For projects
-- **Create** new projects
+- **Create** new projects (with optional YAML/JSON output)
 - **Delete** existing projects
-- **Update** project information (such as name and description)
-- **Retrieve basic info** about projects
+- **Update** project information (with optional YAML/JSON output)
+- **Retrieve basic info** about projects (plain/YAML/JSON formats)
 
 ### For repositories
 - **Create** new repositories
@@ -72,15 +73,83 @@ projects:
 Create project from CLI
 ```
 $ bbctl project create -k demo_project --name demoProject
-time=2025-08-21T14:46:02.342+03:00 level=INFO msg="Created project" key=DEMO_PROJECT
+```
+
+Create project with output
+```
+$ bbctl project create -k demo_project --name demoProject -o yaml
+projects:
+  - id: 54
+    key: DEMO_PROJECT
+    name: demoProject
+    description: ""
+    public: false
+    type: NORMAL
 ```
 
 Bulk create projects from yaml file
 ```
 $ bbctl project create -i examples/projects/create.yaml
-time=2025-08-21T14:58:26.786+03:00 level=INFO msg="Created project" key=D_PROJECT_2
-time=2025-08-21T14:58:26.792+03:00 level=INFO msg="Created project" key=D_PROJECT_1
-time=2025-08-21T14:58:26.792+03:00 level=INFO msg="Created project" key=D_PROJECT_3
+```
+
+Bulk create projects with output
+```
+$ bbctl project create -i examples/projects/create.yaml -o json
+{
+  "projects": [
+    {
+      "id": 55,
+      "key": "D_PROJECT_1",
+      "name": "Demo project 1",
+      "description": "Description for project 1",
+      "public": false,
+      "type": "NORMAL"
+    }
+  ]
+}
+```
+
+Update project from CLI
+```
+$ bbctl project update -k demo_project --name "Updated Project" --description "New description"
+```
+
+Update projects from yaml file
+```
+$ bbctl project update -i projects.yaml
+```
+
+Update projects with output
+```
+$ bbctl project update -i projects.yaml -o yaml
+projects:
+  - id: 54
+    key: DEMO_PROJECT
+    name: Updated Project
+    description: New description
+    public: false
+    type: NORMAL
+```
+
+Delete project from CLI
+```
+$ bbctl project delete -k demo_project
+```
+
+Delete projects from yaml file
+```
+$ bbctl project delete -i projects.yaml
+```
+
+Example project yaml file format
+```yaml
+projects:
+  - key: PROJECT1
+    name: Project 1
+    description: Description for project 1
+  - key: PROJECT2
+    name: Project 2
+    description: Description for project 2
 ```
 
 List repositories in plain format

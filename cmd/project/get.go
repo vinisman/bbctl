@@ -64,7 +64,7 @@ You must specify exactly one of the following options:
 					return nil
 				}
 			case input != "":
-				var parsed models.ProjectList
+				var parsed models.ProjectYaml
 				if err := utils.ParseFile(input, &parsed); err != nil {
 					return fmt.Errorf("failed to parse file %s: %w", input, err)
 				}
@@ -72,7 +72,19 @@ You must specify exactly one of the following options:
 					return fmt.Errorf("no projects found in file %s", input)
 				}
 
-				projects, err = client.GetProjects(parsed.Projects)
+				// Extract project keys from the parsed projects
+				var projectKeys []string
+				for _, p := range parsed.Projects {
+					if p.Key != nil {
+						projectKeys = append(projectKeys, *p.Key)
+					}
+				}
+
+				if len(projectKeys) == 0 {
+					return fmt.Errorf("no project keys found in file %s", input)
+				}
+
+				projects, err = client.GetProjects(projectKeys)
 				if err != nil {
 					client.Logger.Error(err.Error())
 					return nil
@@ -99,9 +111,9 @@ The "yaml" and "json" formats print the full available structure with all fields
 	cmd.Flags().StringVarP(&input, "input", "i", "", `Path to YAML or JSON file with projects to get, or "-" to read from stdin.
 Example file content:
   projects:
-    - projectKey1
-    - projectKey2
-    - projectKey3
+    - key: key1
+    - key: key2
+    - key: key3
 `)
 	return cmd
 }

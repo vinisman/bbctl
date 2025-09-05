@@ -20,6 +20,7 @@ func NewForkCmd() *cobra.Command {
 		newDefaultBranch string
 		newDescription   string
 		input            string
+		output           string
 	)
 
 	cmd := &cobra.Command{
@@ -48,7 +49,19 @@ or --input for a YAML file containing multiple forks.`,
 				if err := utils.ParseFile(input, &parsed); err != nil {
 					return fmt.Errorf("failed to parse YAML file: %w", err)
 				}
-				return client.ForkRepos(parsed.Repositories)
+				forkedRepos, err := client.ForkRepos(parsed.Repositories)
+				if err != nil {
+					client.Logger.Error(err.Error())
+				}
+
+				// Only print output if output format is specified
+				if output != "" {
+					if output != "yaml" && output != "json" {
+						return fmt.Errorf("invalid output format: %s, allowed values: yaml, json", output)
+					}
+					return utils.PrintStructured("repositories", forkedRepos, output, "")
+				}
+				return nil
 			}
 
 			// Case 2: fork single repository
@@ -85,12 +98,19 @@ or --input for a YAML file containing multiple forks.`,
 				RestRepository: &restRepo,
 			}
 
-			err = client.ForkRepos([]models.ExtendedRepository{repo})
+			forkedRepos, err := client.ForkRepos([]models.ExtendedRepository{repo})
 			if err != nil {
 				client.Logger.Error(err.Error())
 			}
 
-			fmt.Printf("Forked repository: %s -> %s\n", repositorySlug, newProjectKey)
+			// Only print output if output format is specified
+			if output != "" {
+				if output != "yaml" && output != "json" {
+					return fmt.Errorf("invalid output format: %s, allowed values: yaml, json", output)
+				}
+				return utils.PrintStructured("repositories", forkedRepos, output, "")
+			}
+
 			return nil
 		},
 	}
@@ -112,6 +132,7 @@ repositories:
       project:
         key: PRJ2
 `)
+	cmd.Flags().StringVarP(&output, "output", "o", "", "Optional output format: yaml or json")
 
 	return cmd
 }
