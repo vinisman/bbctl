@@ -60,7 +60,7 @@ func GetRequiredBuildCmd() *cobra.Command {
 				client.Logger.Error(err.Error())
 				return nil
 			}
-			return utils.PrintStructured("requiredBuilds", values, output, "projectKey,repositorySlug,requiredBuilds.id,requiredBuilds.buildparentkeys")
+			return utils.PrintStructured("repositories", values, output, "projectKey,repositorySlug,requiredBuilds.id,requiredBuilds.buildparentkeys")
 
 		},
 	}

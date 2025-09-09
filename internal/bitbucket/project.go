@@ -150,116 +150,108 @@ func (c *Client) DeleteProjects(keys []string) error {
 }
 
 // CreateProjects creates multiple projects in parallel
-func (c *Client) CreateProjects(projects []openapi.RestProject) error {
+func (c *Client) CreateProjects(projects []openapi.RestProject) ([]openapi.RestProject, error) {
 	type result struct {
-		key string
-		err error
+		index   int
+		project *openapi.RestProject
+		err     error
 	}
 
-	maxWorkers := config.GlobalMaxWorkers
-
-	jobsCh := make(chan openapi.RestProject, len(projects))
 	resultsCh := make(chan result, len(projects))
 
-	// Start workers
-	for i := 0; i < maxWorkers; i++ {
-		go func() {
-			for p := range jobsCh {
-				created, httpResp, err := c.api.ProjectAPI.CreateProject(c.authCtx).
-					RestProject(p).
-					Execute()
-				if err != nil {
-					if httpResp != nil {
-						c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
-					}
-					resultsCh <- result{key: utils.SafeValue(p.Key), err: err}
-				} else {
-					resultsCh <- result{key: utils.SafeValue(created.Key)}
-				}
-			}
-		}()
-	}
-
 	// Send jobs
-	for _, p := range projects {
-		jobsCh <- p
+	for i, p := range projects {
+		go func(index int, project openapi.RestProject) {
+			created, httpResp, err := c.api.ProjectAPI.CreateProject(c.authCtx).
+				RestProject(project).
+				Execute()
+			if err != nil {
+				if httpResp != nil {
+					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+				}
+				resultsCh <- result{index: index, project: &project, err: err}
+			} else {
+				resultsCh <- result{index: index, project: created}
+			}
+		}(i, p)
 	}
-	close(jobsCh)
 
 	// Collect results
+	createdProjects := make([]openapi.RestProject, len(projects))
 	var errorsCount int
 	for i := 0; i < len(projects); i++ {
 		r := <-resultsCh
 		if r.err != nil {
-			c.logger.Error("Failed to create project", "key", r.key, "error", r.err)
+			c.logger.Error("Failed to create project", "key", utils.SafeValue(r.project.Key), "error", r.err)
 			errorsCount++
+			// Keep original project in case of error
+			if r.project != nil {
+				createdProjects[r.index] = *r.project
+			}
 		} else {
-			c.logger.Info("Created project", "key", r.key)
+			c.logger.Info("Created project", "key", utils.SafeValue(r.project.Key))
+			createdProjects[r.index] = *r.project
 		}
 	}
 
 	if errorsCount > 0 {
-		return fmt.Errorf("failed to create %d out of %d projects", errorsCount, len(projects))
+		return createdProjects, fmt.Errorf("failed to create %d out of %d projects", errorsCount, len(projects))
 	}
-	return nil
+	return createdProjects, nil
 }
 
 // UpdateProjects updates multiple projects in parallel
-func (c *Client) UpdateProjects(projects []openapi.RestProject) error {
+func (c *Client) UpdateProjects(projects []openapi.RestProject) ([]openapi.RestProject, error) {
 	type result struct {
-		key string
-		err error
+		index   int
+		project *openapi.RestProject
+		err     error
 	}
 
-	maxWorkers := config.GlobalMaxWorkers
-
-	jobsCh := make(chan openapi.RestProject, len(projects))
 	resultsCh := make(chan result, len(projects))
 
-	// Start workers
-	for i := 0; i < maxWorkers; i++ {
-		go func() {
-			for p := range jobsCh {
-				if p.Key == nil {
-					resultsCh <- result{key: "<nil>", err: fmt.Errorf("project key is required")}
-					continue
-				}
-
-				updated, httpResp, err := c.api.ProjectAPI.UpdateProject(c.authCtx, *p.Key).
-					RestProject(p).
-					Execute()
-				if err != nil && httpResp != nil {
-					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
-				}
-				if err != nil {
-					resultsCh <- result{key: utils.SafeValue(p.Key), err: err}
-				} else {
-					resultsCh <- result{key: utils.SafeValue(updated.Key)}
-				}
-			}
-		}()
-	}
-
 	// Send jobs
-	for _, p := range projects {
-		jobsCh <- p
+	for i, p := range projects {
+		go func(index int, project openapi.RestProject) {
+			if project.Key == nil {
+				resultsCh <- result{index: index, project: &project, err: fmt.Errorf("project key is required")}
+				return
+			}
+
+			updated, httpResp, err := c.api.ProjectAPI.UpdateProject(c.authCtx, *project.Key).
+				RestProject(project).
+				Execute()
+			if err != nil && httpResp != nil {
+				c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+			}
+			if err != nil {
+				resultsCh <- result{index: index, project: &project, err: err}
+			} else {
+				resultsCh <- result{index: index, project: updated}
+			}
+		}(i, p)
 	}
-	close(jobsCh)
 
 	// Collect results
+	updatedProjects := make([]openapi.RestProject, len(projects))
 	var errorsCount int
 	for i := 0; i < len(projects); i++ {
 		r := <-resultsCh
 		if r.err != nil {
-			c.logger.Error("Failed to update project", "key", r.key, "error", r.err)
+			c.logger.Error("Failed to update project", "key", utils.SafeValue(r.project.Key), "error", r.err)
 			errorsCount++
+			// Keep original project in case of error
+			if r.project != nil {
+				updatedProjects[r.index] = *r.project
+			}
 		} else {
-			c.logger.Info("Updated project", "key", r.key)
+			c.logger.Info("Updated project", "key", utils.SafeValue(r.project.Key))
+			updatedProjects[r.index] = *r.project
 		}
 	}
 
 	if errorsCount > 0 {
-		return fmt.Errorf("failed to update %d out of %d projects", errorsCount, len(projects))
+		return updatedProjects, fmt.Errorf("failed to update %d out of %d projects", errorsCount, len(projects))
 	}
-	return nil
+	return updatedProjects, nil
 }

@@ -20,6 +20,7 @@ func NewUpdateCmd() *cobra.Command {
 		defaultBranch  string
 		input          string
 		newProjectKey  string
+		output         string
 	)
 
 	cmd := &cobra.Command{
@@ -46,7 +47,19 @@ or multiple repositories defined in a YAML file with --input.`,
 				if err := utils.ParseFile(input, &parsed); err != nil {
 					return err
 				}
-				return client.UpdateRepos(parsed.Repositories)
+				updatedRepos, err := client.UpdateRepos(parsed.Repositories)
+				if err != nil {
+					client.Logger.Error(err.Error())
+				}
+
+				// Only print output if output format is specified
+				if output != "" {
+					if output != "yaml" && output != "json" {
+						return fmt.Errorf("invalid output format: %s, allowed values: yaml, json", output)
+					}
+					return utils.PrintStructured("repositories", updatedRepos, output, "")
+				}
+				return nil
 			}
 
 			// Case 2: update single repository from CLI flags
@@ -72,10 +85,18 @@ or multiple repositories defined in a YAML file with --input.`,
 			if defaultBranch != "" {
 				repo.RestRepository.DefaultBranch = &defaultBranch
 			}
-			err = client.UpdateRepos([]models.ExtendedRepository{repo})
+			updatedRepos, err := client.UpdateRepos([]models.ExtendedRepository{repo})
 
 			if err != nil {
 				client.Logger.Error(err.Error())
+			}
+
+			// Only print output if output format is specified
+			if output != "" {
+				if output != "yaml" && output != "json" {
+					return fmt.Errorf("invalid output format: %s, allowed values: yaml, json", output)
+				}
+				return utils.PrintStructured("repositories", updatedRepos, output, "")
 			}
 			return nil
 		},
@@ -100,6 +121,7 @@ repositories:
       defaultBranch: "develop"
 `)
 	cmd.Flags().StringVar(&newProjectKey, "newProjectKey", "", "New project key for moving the repository (optional)")
+	cmd.Flags().StringVarP(&output, "output", "o", "", "Optional output format: yaml or json")
 
 	return cmd
 }

@@ -19,6 +19,7 @@ func NewCreateCmd() *cobra.Command {
 		description    string
 		defaultBranch  string
 		input          string
+		output         string
 	)
 
 	cmd := &cobra.Command{
@@ -69,9 +70,17 @@ You must specify either:
 				repos = []models.ExtendedRepository{repo}
 			}
 
-			err = client.CreateRepos(repos)
+			createdRepos, err := client.CreateRepos(repos)
 			if err != nil {
 				client.Logger.Error(err.Error())
+			}
+
+			// Only print output if output format is specified
+			if output != "" {
+				if output != "yaml" && output != "json" {
+					return fmt.Errorf("invalid output format: %s, allowed values: yaml, json", output)
+				}
+				return utils.PrintStructured("repositories", createdRepos, output, "")
 			}
 			return nil
 		},
@@ -91,6 +100,7 @@ repositories:
       description: Description
       defaultBranch: master
 `)
+	cmd.Flags().StringVarP(&output, "output", "o", "", "Optional output format: yaml or json")
 
 	return cmd
 }

@@ -44,11 +44,24 @@ func NewDeleteCmd() *cobra.Command {
 
 			// Case 2: keys from YAML or JSON
 			if input != "" {
-				var parsed models.ProjectList
+				var parsed models.ProjectYaml
 				if err := utils.ParseFile(input, &parsed); err != nil {
 					return err
 				}
-				keys = parsed.Projects
+				if len(parsed.Projects) == 0 {
+					return fmt.Errorf("no projects found in file %s", input)
+				}
+
+				// Extract project keys from the parsed projects
+				for _, p := range parsed.Projects {
+					if p.Key != nil {
+						keys = append(keys, *p.Key)
+					}
+				}
+
+				if len(keys) == 0 {
+					return fmt.Errorf("no project keys found in file %s", input)
+				}
 			}
 
 			// Run deletion
@@ -65,9 +78,9 @@ func NewDeleteCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&input, "input", "i", "", `Path to YAML or JSON file with projects to delete. Use '-' to read from stdin.
 Example file content:
   projects:
-    - PRJ1
-    - PRJ2
-    - PRJ3
+    - key: PRJ1
+    - key: PRJ2
+    - key: PRJ3
 `)
 	return cmd
 }

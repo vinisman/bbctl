@@ -45,23 +45,16 @@ func UpdateWebHookCmd() *cobra.Command {
 			if err != nil {
 				client.Logger.Error(err.Error())
 			}
-			if len(updated) > 0 {
-				for _, r := range updated {
-					for _, wh := range *r.Webhooks {
-						client.Logger.Info("Updated webhook",
-							"project", r.ProjectKey,
-							"repo", r.RepositorySlug,
-							"id", utils.Int32PtrToString(wh.Id),
-							"name", utils.SafeValue(wh.Name))
-					}
+
+			// Only print output if output format is specified
+			if output != "" {
+				if output != "yaml" && output != "json" {
+					return fmt.Errorf("invalid output format: %s, allowed values: yaml, json", output)
 				}
+				return utils.PrintStructured("repositories", updated, output, "")
 			}
 
-			if output != "yaml" && output != "json" {
-				return fmt.Errorf("invalid output format: %s, allowed values: yaml, json", output)
-			}
-
-			return utils.PrintStructured("repositories", updated, output, "")
+			return nil
 		},
 	}
 

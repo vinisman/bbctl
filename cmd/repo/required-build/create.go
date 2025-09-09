@@ -60,11 +60,15 @@ so make sure to use unique names to avoid confusion or accidental overwrites.`,
 				client.Logger.Error(err.Error())
 			}
 
-			if output != "yaml" && output != "json" {
-				return fmt.Errorf("invalid output format: %s, allowed values: yaml, json", output)
+			// Only print output if output format is specified
+			if output != "" {
+				if output != "yaml" && output != "json" {
+					return fmt.Errorf("invalid output format: %s, allowed values: yaml, json", output)
+				}
+				return utils.PrintStructured("repositories", updatedRepos, output, "")
 			}
 
-			return utils.PrintStructured("repositories", updatedRepos, output, "")
+			return nil
 
 		},
 	}
@@ -88,7 +92,7 @@ repositories:
               name: Any branch
 `)
 
-	cmd.Flags().StringVarP(&output, "output", "o", "yaml", "Output format: yaml or json (default: yaml)")
+	cmd.Flags().StringVarP(&output, "output", "o", "", "Optional output format: yaml or json")
 
 	return cmd
 }

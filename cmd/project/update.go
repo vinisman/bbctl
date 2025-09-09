@@ -17,6 +17,7 @@ func NewUpdateCmd() *cobra.Command {
 		name        string
 		description string
 		input       string
+		output      string
 	)
 
 	cmd := &cobra.Command{
@@ -65,10 +66,18 @@ func NewUpdateCmd() *cobra.Command {
 
 			// Only call UpdateProjects once, if any projects were collected
 			if len(projects) > 0 {
-				err = client.UpdateProjects(projects)
+				updatedProjects, err := client.UpdateProjects(projects)
 				if err != nil {
 					client.Logger.Error(err.Error())
 					return nil
+				}
+
+				// Only print output if output format is specified
+				if output != "" {
+					if output != "yaml" && output != "json" {
+						return fmt.Errorf("invalid output format: %s, allowed values: yaml, json", output)
+					}
+					return utils.PrintStructured("projects", updatedProjects, output, "")
 				}
 			}
 
@@ -89,6 +98,7 @@ projects:
     name: Test Project
     description: Updated description
 `)
+	cmd.Flags().StringVarP(&output, "output", "o", "", "Optional output format: yaml or json")
 
 	return cmd
 }

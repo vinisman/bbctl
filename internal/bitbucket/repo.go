@@ -367,209 +367,184 @@ func (c *Client) DeleteRepos(refs []models.ExtendedRepository) error {
 }
 
 // CreateRepos creates multiple repositories in parallel
-func (c *Client) CreateRepos(repos []models.ExtendedRepository) error {
+func (c *Client) CreateRepos(repos []models.ExtendedRepository) ([]models.ExtendedRepository, error) {
 	type result struct {
-		slug string
-		name string
-		err  error
+		index int
+		repo  models.ExtendedRepository
+		err   error
 	}
 
 	resultsCh := make(chan result, len(repos))
-	jobsCh := make(chan models.ExtendedRepository, len(repos))
-
-	maxWorkers := config.GlobalMaxWorkers
-
-	// Workers
-	for i := 0; i < maxWorkers; i++ {
-		go func() {
-			for r := range jobsCh {
-				// Validate required fields
-				if r.RestRepository.Name == nil || r.ProjectKey == "" {
-					resultsCh <- result{slug: utils.SafeValue(r.RestRepository.Slug), err: fmt.Errorf("name and projectKey are required")}
-					continue
-				}
-
-				created, httpResp, err := c.api.ProjectAPI.CreateRepository(c.authCtx, r.ProjectKey).
-					RestRepository(*r.RestRepository).
-					Execute()
-				if err != nil && httpResp != nil {
-					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
-				}
-				if err != nil {
-					resultsCh <- result{slug: utils.SafeValue(r.RestRepository.Slug), name: utils.SafeValue(r.RestRepository.Name), err: err}
-				} else {
-					resultsCh <- result{slug: utils.SafeValue(created.Slug), name: utils.SafeValue(r.RestRepository.Name)}
-				}
-			}
-		}()
-	}
 
 	// Send jobs
-	for _, r := range repos {
-		jobsCh <- r
-	}
-	close(jobsCh)
+	for i, r := range repos {
+		go func(index int, repo models.ExtendedRepository) {
+			// Validate required fields
+			if repo.RestRepository.Name == nil || repo.ProjectKey == "" {
+				resultsCh <- result{index: index, repo: repo, err: fmt.Errorf("name and projectKey are required")}
+				return
+			}
 
+			created, httpResp, err := c.api.ProjectAPI.CreateRepository(c.authCtx, repo.ProjectKey).
+				RestRepository(*repo.RestRepository).
+				Execute()
+			if err != nil && httpResp != nil {
+				c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+			}
+			if err != nil {
+				resultsCh <- result{index: index, repo: repo, err: err}
+			} else {
+				// Update the repository with created data
+				repo.RestRepository = created
+				resultsCh <- result{index: index, repo: repo}
+			}
+		}(i, r)
+	}
+
+	// Collect results
+	createdRepos := make([]models.ExtendedRepository, len(repos))
 	var errorsCount int
 	for i := 0; i < len(repos); i++ {
 		r := <-resultsCh
 		if r.err != nil {
-			c.logger.Error("Failed to create repository", "slug", r.slug, "name", r.name, "error", r.err)
+			c.logger.Error("Failed to create repository", "slug", utils.SafeValue(r.repo.RestRepository.Slug), "name", utils.SafeValue(r.repo.RestRepository.Name), "error", r.err)
 			errorsCount++
+			// Keep original repository in case of error
+			createdRepos[r.index] = r.repo
 		} else {
-			c.logger.Info("Created repository", "slug", r.slug, "name", r.name)
+			c.logger.Info("Created repository", "slug", utils.SafeValue(r.repo.RestRepository.Slug), "name", utils.SafeValue(r.repo.RestRepository.Name))
+			createdRepos[r.index] = r.repo
 		}
 	}
 
 	if errorsCount > 0 {
-		return fmt.Errorf("failed to create %d out of %d repositories", errorsCount, len(repos))
+		return createdRepos, fmt.Errorf("failed to create %d out of %d repositories", errorsCount, len(repos))
 	}
-	return nil
+	return createdRepos, nil
 }
 
 // UpdateRepos updates multiple repositories in parallel by project.key + slug
-func (c *Client) UpdateRepos(repos []models.ExtendedRepository) error {
+func (c *Client) UpdateRepos(repos []models.ExtendedRepository) ([]models.ExtendedRepository, error) {
 	type result struct {
-		slug string
-		err  error
+		index int
+		repo  models.ExtendedRepository
+		err   error
 	}
 
 	resultsCh := make(chan result, len(repos))
-	jobsCh := make(chan models.ExtendedRepository, len(repos))
-
-	maxWorkers := config.GlobalMaxWorkers
-
-	// Workers
-	for i := 0; i < maxWorkers; i++ {
-		go func() {
-			for r := range jobsCh {
-				// Validate required fields for update
-				if r.ProjectKey == "" || r.RepositorySlug == "" {
-					resultsCh <- result{slug: r.RepositorySlug, err: fmt.Errorf("project.key and slug are required for update")}
-					continue
-				}
-
-				updated, httpResp, err := c.api.ProjectAPI.UpdateRepository(c.authCtx, r.ProjectKey, r.RepositorySlug).
-					RestRepository(*r.RestRepository).
-					Execute()
-				if err != nil && httpResp != nil {
-					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
-				}
-				if err != nil {
-					resultsCh <- result{slug: utils.SafeValue(&r.RepositorySlug), err: err}
-				} else {
-					resultsCh <- result{slug: utils.SafeValue(updated.Slug)}
-				}
-			}
-		}()
-	}
 
 	// Send jobs
-	for _, r := range repos {
-		jobsCh <- r
-	}
-	close(jobsCh)
+	for i, r := range repos {
+		go func(index int, repo models.ExtendedRepository) {
+			// Validate required fields for update
+			if repo.ProjectKey == "" || repo.RepositorySlug == "" {
+				resultsCh <- result{index: index, repo: repo, err: fmt.Errorf("project.key and slug are required for update")}
+				return
+			}
 
+			updated, httpResp, err := c.api.ProjectAPI.UpdateRepository(c.authCtx, repo.ProjectKey, repo.RepositorySlug).
+				RestRepository(*repo.RestRepository).
+				Execute()
+			if err != nil && httpResp != nil {
+				c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+			}
+			if err != nil {
+				resultsCh <- result{index: index, repo: repo, err: err}
+			} else {
+				// Update the repository with updated data
+				repo.RestRepository = updated
+				resultsCh <- result{index: index, repo: repo}
+			}
+		}(i, r)
+	}
+
+	// Collect results
+	updatedRepos := make([]models.ExtendedRepository, len(repos))
 	var errorsCount int
 	for i := 0; i < len(repos); i++ {
 		r := <-resultsCh
 		if r.err != nil {
-			c.logger.Error("Failed to update repository", "slug", r.slug, "error", r.err)
+			c.logger.Error("Failed to update repository", "slug", r.repo.RepositorySlug, "error", r.err)
 			errorsCount++
+			// Keep original repository in case of error
+			updatedRepos[r.index] = r.repo
 		} else {
-			c.logger.Info("Updated repository", "slug", r.slug)
+			c.logger.Info("Updated repository", "slug", r.repo.RepositorySlug)
+			updatedRepos[r.index] = r.repo
 		}
 	}
 
 	if errorsCount > 0 {
-		return fmt.Errorf("failed to update %d out of %d repositories", errorsCount, len(repos))
+		return updatedRepos, fmt.Errorf("failed to update %d out of %d repositories", errorsCount, len(repos))
 	}
-	return nil
+	return updatedRepos, nil
 }
 
 // ForkRepos forks multiple repositories in parallel
-func (c *Client) ForkRepos(repos []models.ExtendedRepository) error {
+func (c *Client) ForkRepos(repos []models.ExtendedRepository) ([]models.ExtendedRepository, error) {
 	type result struct {
-		forkName      string
-		sourceProject string
-		sourceSlug    string
-		forkProject   string
-		err           error
+		index int
+		repo  models.ExtendedRepository
+		err   error
 	}
 
 	resultsCh := make(chan result, len(repos))
-	jobsCh := make(chan models.ExtendedRepository, len(repos))
-
-	maxWorkers := config.GlobalMaxWorkers
-
-	// Worker pool
-	for i := 0; i < maxWorkers; i++ {
-		go func() {
-			for r := range jobsCh {
-				if r.ProjectKey == "" || r.RepositorySlug == "" {
-					resultsCh <- result{
-						forkName:      utils.SafeValue(r.RestRepository.Name),
-						sourceProject: r.ProjectKey,
-						sourceSlug:    r.RepositorySlug,
-						forkProject:   "",
-						err:           fmt.Errorf("sourceProject, sourceSlug are required"),
-					}
-					continue
-				}
-
-				createdFork, httpResp, err := c.api.ProjectAPI.ForkRepository(c.authCtx, r.ProjectKey, r.RepositorySlug).
-					RestRepository(*r.RestRepository).
-					Execute()
-				if err != nil && httpResp != nil {
-					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
-				}
-				var forkName string
-				if createdFork != nil && createdFork.Name != nil {
-					forkName = *createdFork.Name
-				} else {
-					forkName = utils.SafeValue(r.RestRepository.Name)
-				}
-
-				resultsCh <- result{
-					forkName:      forkName,
-					sourceProject: r.ProjectKey,
-					sourceSlug:    r.RepositorySlug,
-					err:           err,
-				}
-			}
-		}()
-	}
 
 	// Send jobs
-	for _, r := range repos {
-		jobsCh <- r
-	}
-	close(jobsCh)
+	for i, r := range repos {
+		go func(index int, repo models.ExtendedRepository) {
+			if repo.ProjectKey == "" || repo.RepositorySlug == "" {
+				resultsCh <- result{
+					index: index,
+					repo:  repo,
+					err:   fmt.Errorf("sourceProject, sourceSlug are required"),
+				}
+				return
+			}
 
+			createdFork, httpResp, err := c.api.ProjectAPI.ForkRepository(c.authCtx, repo.ProjectKey, repo.RepositorySlug).
+				RestRepository(*repo.RestRepository).
+				Execute()
+			if err != nil && httpResp != nil {
+				c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+			}
+			if err != nil {
+				resultsCh <- result{index: index, repo: repo, err: err}
+			} else {
+				// Update the repository with forked data
+				repo.RestRepository = createdFork
+				resultsCh <- result{index: index, repo: repo}
+			}
+		}(i, r)
+	}
+
+	// Collect results
+	forkedRepos := make([]models.ExtendedRepository, len(repos))
 	var errorsCount int
 	for i := 0; i < len(repos); i++ {
 		r := <-resultsCh
 		if r.err != nil {
 			c.logger.Error("Failed to fork repository",
-				"sourceProject", r.sourceProject,
-				"sourceSlug", r.sourceSlug,
-				"forkProject", r.forkProject,
-				"forkName", r.forkName,
+				"sourceProject", r.repo.ProjectKey,
+				"sourceSlug", r.repo.RepositorySlug,
+				"forkName", utils.SafeValue(r.repo.RestRepository.Name),
 				"error", r.err)
 			errorsCount++
+			// Keep original repository in case of error
+			forkedRepos[r.index] = r.repo
 		} else {
 			c.logger.Info("Forked repository",
-				"sourceProject", r.sourceProject,
-				"sourceSlug", r.sourceSlug,
-				"forkProject", r.forkProject,
-				"forkName", r.forkName)
+				"sourceProject", r.repo.ProjectKey,
+				"sourceSlug", r.repo.RepositorySlug,
+				"forkName", utils.SafeValue(r.repo.RestRepository.Name))
+			forkedRepos[r.index] = r.repo
 		}
 	}
 
 	if errorsCount > 0 {
-		return fmt.Errorf("failed to fork %d out of %d repositories", errorsCount, len(repos))
+		return forkedRepos, fmt.Errorf("failed to fork %d out of %d repositories", errorsCount, len(repos))
 	}
-	return nil
+	return forkedRepos, nil
 }
 
 // enrichRepository enriches the given ExtendedRepository with additional data according to options.
