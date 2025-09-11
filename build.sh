@@ -25,7 +25,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Print header
+# Print header 
 echo -e "${BLUE}================================${NC}"
 echo -e "${BLUE}  bbctl Build Script${NC}"
 echo -e "${BLUE}================================${NC}"

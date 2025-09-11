@@ -175,7 +175,7 @@ $ bbctl repo get -s PROJECT_1/repo1 -o yaml
 repositories:
     - projectKey: PROJECT_1
       repositorySlug: repo1
-      repository:
+      restRepository:
         archived: false
         defaultbranch: null
         description: Description for repo1

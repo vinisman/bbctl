@@ -115,7 +115,7 @@ Example YAML:
 repositories:
   - projectKey: DEV
     repositorySlug: my-repo
-    repository:
+    restRepository:
       name: "New Repo Name"
       description: "Updated description"
       defaultBranch: "develop"

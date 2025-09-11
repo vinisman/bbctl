@@ -1,9 +1,9 @@
 repositories:
-  - projectKey: d_project_1
-    repository:
+  - projectKey: vsscp
+    restRepository:
       name: repo1
       description: Description for repo1
-  - projectKey: d_project_1
-    repository:
+  - projectKey: vsscp
+    restRepository:
       name: repo2
       description: Description for repo2
