@@ -95,7 +95,7 @@ You must specify either:
 Example YAML:
 repositories:
   - projectKey: PRJ1
-    repository:
+    restRepository:
       name: REPO1
       description: Description
       defaultBranch: master

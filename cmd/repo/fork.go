@@ -125,7 +125,7 @@ Example YAML structure:
 repositories:
   - projectKey: PRJ1
     repositorySlug: repo1
-    repository:
+    restRepository:
       name: REPO1
       description: Description
       defaultBranch: master
