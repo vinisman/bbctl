@@ -19,8 +19,8 @@ func NewDeleteCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "delete",
-		Short: "Delete a repository",
-		Long:  `Delete one or more repositories. You must specify either --repositorySlug in the format <projectKey>/<repositorySlug> for a single repository, or --input for a YAML file with multiple repositories.`,
+		Short: "Delete repositories",
+		Long:  `Delete one or more repositories. You must specify either --repositorySlug in the format <projectKey>/<repositorySlug> (comma-separated for multiple), or --input for a YAML file with multiple repositories.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Validate input: either single repo or YAML file
 			if (input != "" && repositorySlug != "") || (input == "" && repositorySlug == "") {
@@ -45,20 +45,26 @@ func NewDeleteCmd() *cobra.Command {
 				return client.DeleteRepos(parsed.Repositories)
 			}
 
-			// Case 2: delete single repo by project+slug
-			parts := strings.SplitN(repositorySlug, "/", 2)
-			if len(parts) != 2 || parts[1] == "" {
-				client.Logger.Error("invalid repository identifier format, repository slug is empty")
-				return fmt.Errorf("invalid repository identifier format, expected <projectKey>/<repositorySlug>")
-			}
-			projectKey := parts[0]
-			slug := parts[1]
+			// Case 2: delete repos by project+slug (support multiple comma-separated)
+			var repos []models.ExtendedRepository
+			items := strings.Split(repositorySlug, ",")
+			for _, item := range items {
+				item = strings.TrimSpace(item)
+				parts := strings.SplitN(item, "/", 2)
+				if len(parts) != 2 || parts[1] == "" {
+					client.Logger.Error("invalid repository identifier format", "identifier", item)
+					return fmt.Errorf("invalid repository identifier format, expected <projectKey>/<repositorySlug>")
+				}
+				projectKey := parts[0]
+				slug := parts[1]
 
-			ref := models.ExtendedRepository{
-				ProjectKey:     projectKey,
-				RepositorySlug: slug,
+				repos = append(repos, models.ExtendedRepository{
+					ProjectKey:     projectKey,
+					RepositorySlug: slug,
+				})
 			}
-			err = client.DeleteRepos([]models.ExtendedRepository{ref})
+
+			err = client.DeleteRepos(repos)
 			if err != nil {
 				client.Logger.Error(err.Error())
 			}
@@ -66,7 +72,7 @@ func NewDeleteCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&repositorySlug, "repositorySlug", "s", "", "Identifier of the current repository in format <projectKey>/<repositorySlug> (required if --input not used)")
+	cmd.Flags().StringVarP(&repositorySlug, "repositorySlug", "s", "", "Repository identifiers in format <projectKey>/<repositorySlug>, multiple repositories can be comma-separated (required if --input not used)")
 	cmd.Flags().StringVarP(&input, "input", "i", "", `Path to YAML or JSON file with repositories to delete, or '-' to read from stdin.
 Example file content:
 repositories:
