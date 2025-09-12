@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/vinisman/bbctl/internal/config"
 	"github.com/vinisman/bbctl/internal/models"
@@ -431,38 +432,62 @@ func (c *Client) UpdateRepos(repos []models.ExtendedRepository) ([]models.Extend
 		err   error
 	}
 
+	type job struct {
+		index int
+		repo  models.ExtendedRepository
+	}
+
 	resultsCh := make(chan result, len(repos))
+	jobs := make(chan job, len(repos))
+
+	// Start workers
+	maxWorkers := config.GlobalMaxWorkers
+	var wg sync.WaitGroup
+
+	for i := 0; i < maxWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := range jobs {
+				// Validate required fields for update
+				if j.repo.ProjectKey == "" || j.repo.RepositorySlug == "" {
+					resultsCh <- result{index: j.index, repo: j.repo, err: fmt.Errorf("project.key and slug are required for update")}
+					continue
+				}
+
+				updated, httpResp, err := c.api.ProjectAPI.UpdateRepository(c.authCtx, j.repo.ProjectKey, j.repo.RepositorySlug).
+					RestRepository(*j.repo.RestRepository).
+					Execute()
+				if err != nil && httpResp != nil {
+					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+				}
+				if err != nil {
+					resultsCh <- result{index: j.index, repo: j.repo, err: err}
+				} else {
+					// Update the repository with updated data
+					j.repo.RestRepository = updated
+					resultsCh <- result{index: j.index, repo: j.repo}
+				}
+			}
+		}()
+	}
 
 	// Send jobs
 	for i, r := range repos {
-		go func(index int, repo models.ExtendedRepository) {
-			// Validate required fields for update
-			if repo.ProjectKey == "" || repo.RepositorySlug == "" {
-				resultsCh <- result{index: index, repo: repo, err: fmt.Errorf("project.key and slug are required for update")}
-				return
-			}
-
-			updated, httpResp, err := c.api.ProjectAPI.UpdateRepository(c.authCtx, repo.ProjectKey, repo.RepositorySlug).
-				RestRepository(*repo.RestRepository).
-				Execute()
-			if err != nil && httpResp != nil {
-				c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
-			}
-			if err != nil {
-				resultsCh <- result{index: index, repo: repo, err: err}
-			} else {
-				// Update the repository with updated data
-				repo.RestRepository = updated
-				resultsCh <- result{index: index, repo: repo}
-			}
-		}(i, r)
+		jobs <- job{index: i, repo: r}
 	}
+	close(jobs)
+
+	// Wait for all workers to complete
+	go func() {
+		wg.Wait()
+		close(resultsCh)
+	}()
 
 	// Collect results
 	updatedRepos := make([]models.ExtendedRepository, len(repos))
 	var errorsCount int
-	for i := 0; i < len(repos); i++ {
-		r := <-resultsCh
+	for r := range resultsCh {
 		if r.err != nil {
 			c.logger.Error("Failed to update repository", "slug", r.repo.RepositorySlug, "error", r.err)
 			errorsCount++
@@ -488,41 +513,65 @@ func (c *Client) ForkRepos(repos []models.ExtendedRepository) ([]models.Extended
 		err   error
 	}
 
+	type job struct {
+		index int
+		repo  models.ExtendedRepository
+	}
+
 	resultsCh := make(chan result, len(repos))
+	jobs := make(chan job, len(repos))
+
+	// Start workers
+	maxWorkers := config.GlobalMaxWorkers
+	var wg sync.WaitGroup
+
+	for i := 0; i < maxWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := range jobs {
+				if j.repo.ProjectKey == "" || j.repo.RepositorySlug == "" {
+					resultsCh <- result{
+						index: j.index,
+						repo:  j.repo,
+						err:   fmt.Errorf("sourceProject, sourceSlug are required"),
+					}
+					continue
+				}
+
+				createdFork, httpResp, err := c.api.ProjectAPI.ForkRepository(c.authCtx, j.repo.ProjectKey, j.repo.RepositorySlug).
+					RestRepository(*j.repo.RestRepository).
+					Execute()
+				if err != nil && httpResp != nil {
+					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+				}
+				if err != nil {
+					resultsCh <- result{index: j.index, repo: j.repo, err: err}
+				} else {
+					// Update the repository with forked data
+					j.repo.RestRepository = createdFork
+					resultsCh <- result{index: j.index, repo: j.repo}
+				}
+			}
+		}()
+	}
 
 	// Send jobs
 	for i, r := range repos {
-		go func(index int, repo models.ExtendedRepository) {
-			if repo.ProjectKey == "" || repo.RepositorySlug == "" {
-				resultsCh <- result{
-					index: index,
-					repo:  repo,
-					err:   fmt.Errorf("sourceProject, sourceSlug are required"),
-				}
-				return
-			}
-
-			createdFork, httpResp, err := c.api.ProjectAPI.ForkRepository(c.authCtx, repo.ProjectKey, repo.RepositorySlug).
-				RestRepository(*repo.RestRepository).
-				Execute()
-			if err != nil && httpResp != nil {
-				c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
-			}
-			if err != nil {
-				resultsCh <- result{index: index, repo: repo, err: err}
-			} else {
-				// Update the repository with forked data
-				repo.RestRepository = createdFork
-				resultsCh <- result{index: index, repo: repo}
-			}
-		}(i, r)
+		jobs <- job{index: i, repo: r}
 	}
+	close(jobs)
+
+	// Wait for all workers to complete
+	go func() {
+		wg.Wait()
+		close(resultsCh)
+	}()
 
 	// Collect results
 	forkedRepos := make([]models.ExtendedRepository, len(repos))
 	var errorsCount int
-	for i := 0; i < len(repos); i++ {
-		r := <-resultsCh
+	for r := range resultsCh {
 		if r.err != nil {
 			c.logger.Error("Failed to fork repository",
 				"sourceProject", r.repo.ProjectKey,

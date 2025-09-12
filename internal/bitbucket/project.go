@@ -2,6 +2,7 @@ package bitbucket
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/vinisman/bbctl/internal/config"
 	"github.com/vinisman/bbctl/utils"
@@ -157,30 +158,54 @@ func (c *Client) CreateProjects(projects []openapi.RestProject) ([]openapi.RestP
 		err     error
 	}
 
+	type job struct {
+		index   int
+		project openapi.RestProject
+	}
+
 	resultsCh := make(chan result, len(projects))
+	jobs := make(chan job, len(projects))
+
+	// Start workers
+	maxWorkers := config.GlobalMaxWorkers
+	var wg sync.WaitGroup
+
+	for i := 0; i < maxWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := range jobs {
+				created, httpResp, err := c.api.ProjectAPI.CreateProject(c.authCtx).
+					RestProject(j.project).
+					Execute()
+				if err != nil {
+					if httpResp != nil {
+						c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+					}
+					resultsCh <- result{index: j.index, project: &j.project, err: err}
+				} else {
+					resultsCh <- result{index: j.index, project: created}
+				}
+			}
+		}()
+	}
 
 	// Send jobs
 	for i, p := range projects {
-		go func(index int, project openapi.RestProject) {
-			created, httpResp, err := c.api.ProjectAPI.CreateProject(c.authCtx).
-				RestProject(project).
-				Execute()
-			if err != nil {
-				if httpResp != nil {
-					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
-				}
-				resultsCh <- result{index: index, project: &project, err: err}
-			} else {
-				resultsCh <- result{index: index, project: created}
-			}
-		}(i, p)
+		jobs <- job{index: i, project: p}
 	}
+	close(jobs)
+
+	// Wait for all workers to complete
+	go func() {
+		wg.Wait()
+		close(resultsCh)
+	}()
 
 	// Collect results
 	createdProjects := make([]openapi.RestProject, len(projects))
 	var errorsCount int
-	for i := 0; i < len(projects); i++ {
-		r := <-resultsCh
+	for r := range resultsCh {
 		if r.err != nil {
 			c.logger.Error("Failed to create project", "key", utils.SafeValue(r.project.Key), "error", r.err)
 			errorsCount++
@@ -208,35 +233,59 @@ func (c *Client) UpdateProjects(projects []openapi.RestProject) ([]openapi.RestP
 		err     error
 	}
 
+	type job struct {
+		index   int
+		project openapi.RestProject
+	}
+
 	resultsCh := make(chan result, len(projects))
+	jobs := make(chan job, len(projects))
+
+	// Start workers
+	maxWorkers := config.GlobalMaxWorkers
+	var wg sync.WaitGroup
+
+	for i := 0; i < maxWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := range jobs {
+				if j.project.Key == nil {
+					resultsCh <- result{index: j.index, project: &j.project, err: fmt.Errorf("project key is required")}
+					continue
+				}
+
+				updated, httpResp, err := c.api.ProjectAPI.UpdateProject(c.authCtx, *j.project.Key).
+					RestProject(j.project).
+					Execute()
+				if err != nil && httpResp != nil {
+					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+				}
+				if err != nil {
+					resultsCh <- result{index: j.index, project: &j.project, err: err}
+				} else {
+					resultsCh <- result{index: j.index, project: updated}
+				}
+			}
+		}()
+	}
 
 	// Send jobs
 	for i, p := range projects {
-		go func(index int, project openapi.RestProject) {
-			if project.Key == nil {
-				resultsCh <- result{index: index, project: &project, err: fmt.Errorf("project key is required")}
-				return
-			}
-
-			updated, httpResp, err := c.api.ProjectAPI.UpdateProject(c.authCtx, *project.Key).
-				RestProject(project).
-				Execute()
-			if err != nil && httpResp != nil {
-				c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
-			}
-			if err != nil {
-				resultsCh <- result{index: index, project: &project, err: err}
-			} else {
-				resultsCh <- result{index: index, project: updated}
-			}
-		}(i, p)
+		jobs <- job{index: i, project: p}
 	}
+	close(jobs)
+
+	// Wait for all workers to complete
+	go func() {
+		wg.Wait()
+		close(resultsCh)
+	}()
 
 	// Collect results
 	updatedProjects := make([]openapi.RestProject, len(projects))
 	var errorsCount int
-	for i := 0; i < len(projects); i++ {
-		r := <-resultsCh
+	for r := range resultsCh {
 		if r.err != nil {
 			c.logger.Error("Failed to update project", "key", utils.SafeValue(r.project.Key), "error", r.err)
 			errorsCount++
