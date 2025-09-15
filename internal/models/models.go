@@ -36,3 +36,14 @@ type RepositoryYaml struct {
 type ProjectYaml struct {
 	Projects []openapi.RestProject `json:"projects,omitempty" yaml:"projects,omitempty"`
 }
+
+// User represents a user for YAML parsing (with string fields)
+type User struct {
+	Name         string `json:"name" yaml:"name"`
+	DisplayName  string `json:"displayName" yaml:"displayName"`
+	EmailAddress string `json:"emailAddress" yaml:"emailAddress"`
+}
+
+type UserYaml struct {
+	Users []User `json:"users,omitempty" yaml:"users,omitempty"`
+}

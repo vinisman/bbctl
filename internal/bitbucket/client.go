@@ -32,6 +32,8 @@ func NewClient(ctx context.Context) (*Client, error) {
 	config.GlobalLogger.Debug("Added default header", "header", "X-Content-Type-Options", "value", "nosniff")
 	cfgOpenAPI.AddDefaultHeader("X-Frame-Options", "DENY")
 	config.GlobalLogger.Debug("Added default header", "header", "X-Frame-Options", "value", "DENY")
+	cfgOpenAPI.AddDefaultHeader("X-Atlassian-Token", "no-check")
+	config.GlobalLogger.Debug("Added default header", "header", "X-Atlassian-Token", "value", "no-check")
 
 	if config.GlobalCfg == nil {
 		return nil, fmt.Errorf("config is nil")

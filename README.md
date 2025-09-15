@@ -1,17 +1,18 @@
 # bbctl
 
-**bbctl** is a CLI tool for managing repositories and automation in **Bitbucket Server / Data Center** environments.  
-It provides streamlined support for creating, deleting, updating, and retrieving information about projects and repositories.
+**bbctl** is a CLI tool for managing repositories, projects, and users in **Bitbucket Server / Data Center** environments.  
+It provides streamlined support for creating, deleting, updating, and retrieving information about projects, repositories, and users.
 
 ## ✨ Features
 
-- Manage multiple repositories and multiple projects
+- Manage multiple repositories, projects, and users
 - Retrieve additional repository information using a manifest file from the root of the repository  
 - Parallel processing for high-performance bulk operations
 - YAML/JSON output for full GitOps compatibility
 - Easy configuration via `.env` file
 - Support reading YAML/JSON from stdin (`-`) for all relevant commands
 - Unified project file format across all project operations
+- User management with secure password handling
 
 ## Configuration
 Add a `.env` properties file as shown below, or provide configuration via command-line flags.  
@@ -42,6 +43,13 @@ BITBUCKET_PAGE_SIZE=50
   - Required builds
   - Manifest file information (from the root of the repository)
   - Default branch
+
+### For users
+- **Create** new users (with secure password handling)
+- **Delete** existing users
+- **Update** user information (display name, email address)
+- **Retrieve basic info** about users (plain/YAML/JSON formats)
+- **Bulk operations** for managing multiple users
 
 ## Usage examples
 
@@ -259,6 +267,79 @@ $ bbctl repo required-build create -i examples/repos/required-builds/create.yaml
 time=2025-08-21T15:37:30.690+03:00 level=INFO msg="Created required build merge check" project=project_1 slug=repo2 buildKey=14
 time=2025-08-21T15:37:30.697+03:00 level=INFO msg="Created required build merge check" project=project_1 slug=repo2 buildKey=15
 
+```
+
+## User Management Examples
+
+List users in plain format
+```
+$ bbctl user get -n user1,user2
+Name    Display Name    Email Address    Active
+user1   User One        user1@example.com    true
+user2   User Two        user2@example.com    true
+```
+
+List all users in YAML format
+```
+$ bbctl user get --all -o yaml
+users:
+  - name: user1
+    displayName: User One
+    emailAddress: user1@example.com
+    active: true
+  - name: user2
+    displayName: User Two
+    emailAddress: user2@example.com
+    active: true
+```
+
+Create user from CLI
+```
+$ bbctl user create -n user1 --displayName "User One" --email user1@example.com --user-password SecurePass123!
+```
+
+Create users from YAML file
+```
+$ bbctl user create -i examples/users/create.yaml --user-password SecurePass123!
+time=2025-09-15T22:30:15.123+03:00 level=INFO msg="Created user" username=user1
+time=2025-09-15T22:30:15.456+03:00 level=INFO msg="Created user" username=user2
+```
+
+Update user information
+```
+$ bbctl user update -n user1 --displayName "Updated User One" --email user1@newdomain.com
+time=2025-09-15T22:35:20.789+03:00 level=INFO msg="Updated user" username=user1
+```
+
+Update users from YAML file
+```
+$ bbctl user update -i examples/users/update.yaml
+time=2025-09-15T22:40:10.123+03:00 level=INFO msg="Updated user" username=user1
+time=2025-09-15T22:40:10.456+03:00 level=INFO msg="Updated user" username=user2
+```
+
+Delete user
+```
+$ bbctl user delete -n user1
+time=2025-09-15T22:45:30.123+03:00 level=INFO msg="Deleted user" username=user1
+```
+
+Delete users from YAML file
+```
+$ bbctl user delete -i examples/users/delete.yaml
+time=2025-09-15T22:50:15.123+03:00 level=INFO msg="Deleted user" username=user1
+time=2025-09-15T22:50:15.456+03:00 level=INFO msg="Deleted user" username=user2
+```
+
+Example user YAML file format
+```yaml
+users:
+  - name: user1
+    displayName: "User One"
+    emailAddress: user1@example.com
+  - name: user2
+    displayName: "User Two"
+    emailAddress: user2@example.com
 ```
 
 
