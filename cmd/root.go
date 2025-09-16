@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/vinisman/bbctl/cmd/project"
 	"github.com/vinisman/bbctl/cmd/repo"
+	"github.com/vinisman/bbctl/cmd/user"
 	"github.com/vinisman/bbctl/internal/config"
 )
 
@@ -98,6 +99,7 @@ func NewRootCmd() *cobra.Command {
 	cmd.AddCommand(
 		repo.NewRepoCmd(),
 		project.NewProjectCmd(),
+		user.UserCmd(),
 		versionCmd(),
 	)
 

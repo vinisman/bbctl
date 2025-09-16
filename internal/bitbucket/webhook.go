@@ -121,7 +121,7 @@ func (c *Client) CreateWebhooks(repos []models.ExtendedRepository) ([]models.Ext
 
 	// start worker pool
 	wg.Add(maxWorkers)
-	for i := 0; i < maxWorkers; i++ {
+	for range maxWorkers {
 		go worker()
 	}
 
@@ -218,7 +218,7 @@ func (c *Client) UpdateWebhooks(repos []models.ExtendedRepository) ([]models.Ext
 
 	// start worker pool
 	wg.Add(maxWorkers)
-	for i := 0; i < maxWorkers; i++ {
+	for range maxWorkers {
 		go worker()
 	}
 
@@ -310,7 +310,7 @@ func (c *Client) DeleteWebhooks(repos []models.ExtendedRepository) error {
 
 	// start worker pool
 	wg.Add(maxWorkers)
-	for i := 0; i < maxWorkers; i++ {
+	for range maxWorkers {
 		go worker()
 	}
 

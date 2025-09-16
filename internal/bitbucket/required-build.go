@@ -78,7 +78,7 @@ func (c *Client) CreateRequiredBuilds(repos []models.ExtendedRepository) ([]mode
 
 	// start worker pool
 	wg.Add(maxWorkers)
-	for i := 0; i < maxWorkers; i++ {
+	for range maxWorkers {
 		go worker()
 	}
 
@@ -185,7 +185,7 @@ func (c *Client) UpdateRequiredBuilds(repos []models.ExtendedRepository) ([]mode
 
 	// start worker pool
 	wg.Add(maxWorkers)
-	for i := 0; i < maxWorkers; i++ {
+	for range maxWorkers {
 		go worker()
 	}
 
@@ -270,7 +270,7 @@ func (c *Client) DeleteRequiredBuilds(repos []models.ExtendedRepository) error {
 
 	// start worker pool
 	wg.Add(maxWorkers)
-	for i := 0; i < maxWorkers; i++ {
+	for range maxWorkers {
 		go worker()
 	}
 
@@ -354,7 +354,7 @@ func (c *Client) GetRequiredBuilds(repos []models.ExtendedRepository) ([]models.
 	}
 
 	wg.Add(maxWorkers)
-	for i := 0; i < maxWorkers; i++ {
+	for range maxWorkers {
 		go worker()
 	}
 

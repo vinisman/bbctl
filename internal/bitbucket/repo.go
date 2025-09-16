@@ -179,7 +179,7 @@ func (c *Client) GetAllRepos(projectKeys []string, options models.RepositoryOpti
 	maxWorkers := config.GlobalMaxWorkers
 
 	// Worker pool
-	for i := 0; i < maxWorkers; i++ {
+	for range maxWorkers {
 		go func() {
 			for pk := range jobsCh {
 				repos, err := c.GetAllReposForProject(pk, options)
@@ -322,7 +322,7 @@ func (c *Client) DeleteRepos(refs []models.ExtendedRepository) error {
 	maxWorkers := config.GlobalMaxWorkers
 
 	// Workers
-	for i := 0; i < maxWorkers; i++ {
+	for range maxWorkers {
 		go func() {
 			for ref := range jobsCh {
 				httpResp, err := c.api.ProjectAPI.DeleteRepository(c.authCtx, ref.ProjectKey, ref.RepositorySlug).Execute()
@@ -444,7 +444,7 @@ func (c *Client) UpdateRepos(repos []models.ExtendedRepository) ([]models.Extend
 	maxWorkers := config.GlobalMaxWorkers
 	var wg sync.WaitGroup
 
-	for i := 0; i < maxWorkers; i++ {
+	for range maxWorkers {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -525,7 +525,7 @@ func (c *Client) ForkRepos(repos []models.ExtendedRepository) ([]models.Extended
 	maxWorkers := config.GlobalMaxWorkers
 	var wg sync.WaitGroup
 
-	for i := 0; i < maxWorkers; i++ {
+	for range maxWorkers {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

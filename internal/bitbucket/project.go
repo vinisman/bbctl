@@ -56,7 +56,7 @@ func (c *Client) GetProjects(keys []string) ([]openapi.RestProject, error) {
 	resultsCh := make(chan result, len(keys))
 
 	// Start workers
-	for i := 0; i < maxWorkers; i++ {
+	for range maxWorkers {
 		go func() {
 			for j := range jobsCh {
 				resp, httpResp, err := c.api.ProjectAPI.GetProject(c.authCtx, j.key).Execute()
@@ -110,7 +110,7 @@ func (c *Client) DeleteProjects(keys []string) error {
 	resultsCh := make(chan result, len(keys))
 
 	// Start workers
-	for i := 0; i < maxWorkers; i++ {
+	for range maxWorkers {
 		go func() {
 			for k := range jobsCh {
 				httpResp, err := c.api.ProjectAPI.DeleteProject(c.authCtx, k).Execute()
@@ -170,7 +170,7 @@ func (c *Client) CreateProjects(projects []openapi.RestProject) ([]openapi.RestP
 	maxWorkers := config.GlobalMaxWorkers
 	var wg sync.WaitGroup
 
-	for i := 0; i < maxWorkers; i++ {
+	for range maxWorkers {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -245,7 +245,7 @@ func (c *Client) UpdateProjects(projects []openapi.RestProject) ([]openapi.RestP
 	maxWorkers := config.GlobalMaxWorkers
 	var wg sync.WaitGroup
 
-	for i := 0; i < maxWorkers; i++ {
+	for range maxWorkers {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

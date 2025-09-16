@@ -1,0 +1,11 @@
+users:
+  - name: user1
+    displayName: "Updated User One"
+    emailAddress: user1@newdomain.com
+  - name: user2
+    displayName: "Updated User Two"
+    emailAddress: user2@newdomain.com
+  - name: user3
+    displayName: "Updated User Three"
+  - name: test-user
+    emailAddress: test@example.com
