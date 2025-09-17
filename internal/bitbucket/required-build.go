@@ -155,6 +155,14 @@ func (c *Client) UpdateRequiredBuilds(repos []models.ExtendedRepository) ([]mode
 
 			if err != nil && httpResp != nil {
 				c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+				if httpResp.StatusCode == 404 {
+					// Skip missing items: treat as no-op
+					c.logger.Info("Required build not found during update, skipping",
+						"project", j.repo.ProjectKey,
+						"slug", j.repo.RepositorySlug,
+						"id", j.id)
+					continue
+				}
 				errCh <- fmt.Errorf("failed to update required-build %v in %s/%s: %w",
 					j.req.BuildParentKeys,
 					j.repo.ProjectKey, j.repo.RepositorySlug, err)
@@ -375,4 +383,71 @@ func (c *Client) GetRequiredBuilds(repos []models.ExtendedRepository) ([]models.
 	}
 
 	return repos, nil
+}
+
+// AreRequiredBuildsEqual compares two required-build conditions for equality.
+// Exported for reuse across commands (e.g., diff command).
+func AreRequiredBuildsEqual(a, b openapi.RestRequiredBuildCondition) bool {
+	if !equalStringSlices(a.BuildParentKeys, b.BuildParentKeys) {
+		return false
+	}
+	if !equalRefMatcher(a.RefMatcher, b.RefMatcher) {
+		return false
+	}
+	if !equalRefMatcher(a.ExemptRefMatcher, b.ExemptRefMatcher) {
+		return false
+	}
+	return true
+}
+
+func equalStringSlices(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func equalStringPtr(a, b *string) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	return *a == *b
+}
+
+func equalMatcherType(a, b *openapi.UpdatePullRequestCondition1RequestSourceMatcherType) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	// Assuming fields Id and Name are *string
+	return equalStringPtr(a.Id, b.Id) && equalStringPtr(a.Name, b.Name)
+}
+
+func equalRefMatcher(a, b *openapi.UpdatePullRequestCondition1RequestSourceMatcher) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	if !equalStringPtr(a.Id, b.Id) {
+		return false
+	}
+	if !equalStringPtr(a.DisplayId, b.DisplayId) {
+		return false
+	}
+	if !equalMatcherType(a.Type, b.Type) {
+		return false
+	}
+	return true
 }
