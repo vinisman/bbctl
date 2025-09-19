@@ -15,6 +15,7 @@ func RepoWebHookCmd() *cobra.Command {
 		CreateWebHookCmd(),
 		DeleteWebHookCmd(),
 		UpdateWebHookCmd(),
+		DiffWebHookCmd(),
 	)
 
 	return cmd

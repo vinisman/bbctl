@@ -259,6 +259,14 @@ func (c *Client) DeleteRequiredBuilds(repos []models.ExtendedRepository) error {
 			if err != nil {
 				if httpResp != nil {
 					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+					if httpResp.StatusCode == 404 {
+						// Skip missing items: treat as no-op
+						c.logger.Info("Required build was already absent (404), skipping",
+							"project", j.repo.ProjectKey,
+							"slug", j.repo.RepositorySlug,
+							"buildId", j.id)
+						continue
+					}
 				}
 				c.logger.Error("Failed to delete required build merge check",
 					"project", j.repo.ProjectKey,

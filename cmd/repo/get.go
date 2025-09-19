@@ -57,6 +57,16 @@ Only one of these options should be used at a time.`,
 			var cols []string
 
 			options := models.RepositoryOptions{}
+			// Track exactly what user requested to control output stripping
+			requestedRepository := false
+			requestedWebhooks := false
+			requestedRequiredBuilds := false
+			requestedManifest := false
+
+			// Validate: if user explicitly set --show-details to empty -> error
+			if cmd.Flags().Changed("show-details") && strings.TrimSpace(showDetails) == "" {
+				return fmt.Errorf("--show-details cannot be empty")
+			}
 
 			if showDetails != "" && output != "plain" {
 				// enable only the options specified in showDetails
@@ -64,19 +74,27 @@ Only one of these options should be used at a time.`,
 					switch opt {
 					case "repository":
 						options.Repository = true
+						requestedRepository = true
 					case "defaultbranch":
 						options.DefaultBranch = true
 					case "webhooks":
 						options.Webhooks = true
+						requestedWebhooks = true
 					case "required-builds":
 						options.RequiredBuilds = true
+						requestedRequiredBuilds = true
 					case "manifest":
 						if manifestFile == "" {
 							return fmt.Errorf("please specify --manifest-file")
 						}
 						options.Manifest = true
 						options.ManifestPath = &manifestFile
+						requestedManifest = true
 					}
+				}
+				// Ensure repository details are fetched when defaultBranch is requested
+				if options.DefaultBranch {
+					options.Repository = true
 				}
 			} else {
 				// default options
@@ -149,6 +167,25 @@ Only one of these options should be used at a time.`,
 					}
 				} else {
 					return fmt.Errorf("invalid combination of --projectKey and --repositorySlug")
+				}
+			}
+
+			// If user explicitly provided show-details, strip fields not requested before structured output
+			if showDetails != "" && output != "plain" {
+				for i := range repos {
+					if !requestedRepository {
+						repos[i].RestRepository = nil
+					}
+					if !requestedWebhooks {
+						repos[i].Webhooks = nil
+					}
+					if !requestedRequiredBuilds {
+						repos[i].RequiredBuilds = nil
+					}
+					if !requestedManifest {
+						repos[i].Manifest = nil
+					}
+					// DefaultBranch is only populated when requested; no action needed here
 				}
 			}
 
