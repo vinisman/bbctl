@@ -21,6 +21,7 @@ func DiffWebHookCmd() *cobra.Command {
 		applyResultOut   string
 		applyRollbackOut string
 		rollbackFile     string
+		quiet            bool
 	)
 
 	cmd := &cobra.Command{
@@ -64,6 +65,9 @@ Options:
 					if _, err := client.CreateWebhooks(plan.Create); err != nil {
 						return fmt.Errorf("rollback create failed: %w", err)
 					}
+				}
+				if quiet {
+					return nil
 				}
 				if output != "" {
 					return utils.PrintStructured("rollback", plan, output, "")
@@ -206,6 +210,7 @@ Options:
 	cmd.Flags().StringVar(&applyResultOut, "apply-result-out", "", "After --apply: FILE path to save created+updated repos; format controlled by -o (json/yaml)")
 	cmd.Flags().StringVar(&applyRollbackOut, "apply-rollback-out", "", "Write rollback plan to file after successful --apply (json or yaml)")
 	cmd.Flags().StringVar(&rollbackFile, "rollback", "", "Execute rollback plan from file (reverses a previous apply)")
+	cmd.Flags().BoolVarP(&quiet, "quiet", "q", false, "Suppress printing rollback plan to stdout during --rollback")
 
 	return cmd
 }
