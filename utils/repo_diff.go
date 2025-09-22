@@ -256,7 +256,13 @@ func BuildRollbackPlan[T any, ID comparable](source []models.ExtendedRepository,
 
 // WriteRollbackPlan writes plan to file in json or yaml based on format
 func WriteRollbackPlan(path, format string, plan *models.RollbackPlan) error {
-	wrapper := map[string]interface{}{"rollback": plan}
+	// create a sorted copy according to projectKey, repositorySlug, and item ids
+	sorted := &models.RollbackPlan{
+		Delete: SortRepositoriesStable(plan.Delete),
+		Update: SortRepositoriesStable(plan.Update),
+		Create: SortRepositoriesStable(plan.Create),
+	}
+	wrapper := map[string]interface{}{"rollback": sorted}
 	var data []byte
 	var err error
 	switch strings.ToLower(format) {

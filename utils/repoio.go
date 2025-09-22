@@ -3,6 +3,7 @@ package utils
 import (
 	"encoding/json"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/vinisman/bbctl/internal/models"
@@ -110,5 +111,71 @@ func GroupRepositories(repos []models.ExtendedRepository) []models.ExtendedRepos
 	for _, key := range order {
 		out = append(out, *repoMap[key])
 	}
+	return SortRepositoriesStable(out)
+}
+
+// SortRepositoriesStable returns a sorted copy of repositories ordered by projectKey,
+// repositorySlug, and with inner collections sorted by id:
+// - requiredBuilds[].id (int64) ascending, nil first
+// - webhooks[].id (int32) ascending, nil first
+func SortRepositoriesStable(repos []models.ExtendedRepository) []models.ExtendedRepository {
+	// deep-ish copy
+	out := make([]models.ExtendedRepository, 0, len(repos))
+	for _, r := range repos {
+		nr := models.ExtendedRepository{
+			ProjectKey:     r.ProjectKey,
+			RepositorySlug: r.RepositorySlug,
+			DefaultBranch:  r.DefaultBranch,
+			RestRepository: r.RestRepository,
+			Manifest:       r.Manifest,
+		}
+		if r.RequiredBuilds != nil {
+			dup := make([]openapi.RestRequiredBuildCondition, len(*r.RequiredBuilds))
+			copy(dup, *r.RequiredBuilds)
+			// sort by id (nil first)
+			sort.Slice(dup, func(i, j int) bool {
+				var li, lj int64
+				if dup[i].Id != nil {
+					li = *dup[i].Id
+				} else {
+					li = -1
+				}
+				if dup[j].Id != nil {
+					lj = *dup[j].Id
+				} else {
+					lj = -1
+				}
+				return li < lj
+			})
+			nr.RequiredBuilds = &dup
+		}
+		if r.Webhooks != nil {
+			dup := make([]openapi.RestWebhook, len(*r.Webhooks))
+			copy(dup, *r.Webhooks)
+			// sort by id (nil first)
+			sort.Slice(dup, func(i, j int) bool {
+				var li, lj int64
+				if dup[i].Id != nil {
+					li = int64(*dup[i].Id)
+				} else {
+					li = -1
+				}
+				if dup[j].Id != nil {
+					lj = int64(*dup[j].Id)
+				} else {
+					lj = -1
+				}
+				return li < lj
+			})
+			nr.Webhooks = &dup
+		}
+		out = append(out, nr)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].ProjectKey == out[j].ProjectKey {
+			return out[i].RepositorySlug < out[j].RepositorySlug
+		}
+		return out[i].ProjectKey < out[j].ProjectKey
+	})
 	return out
 }
