@@ -603,7 +603,11 @@ func (c *Client) enrichRepository(r models.ExtendedRepository, projectKey string
 	if options.DefaultBranch && r.RepositorySlug != "" {
 		b, err := c.GetDefaultBranch(projectKey, r.RepositorySlug)
 		if err == nil {
-			r.RestRepository.DefaultBranch = &b
+			// write both flat field and nested restRepository.defaultBranch if repository requested
+			r.DefaultBranch = b
+			if r.RestRepository != nil {
+				r.RestRepository.DefaultBranch = &b
+			}
 		} else {
 			errs = append(errs, fmt.Errorf("defaultBranch: %w", err))
 		}

@@ -244,6 +244,25 @@ repositories:
 
 ```
 
+Show only defaultBranch (flat field) without full repository payload
+```
+$ bbctl repo get -s PROJECT_1/repo1 --show-details defaultBranch -o json
+{
+  "repositories": [
+    {
+      "projectKey": "PROJECT_1",
+      "repositorySlug": "repo1",
+      "defaultBranch": "refs/heads/main"
+    }
+  ]
+}
+```
+
+Notes about --show-details:
+- If you pass `--show-details`, only the listed sections are included in the output (repository, defaultBranch, webhooks, required-builds, manifest).
+- `defaultBranch` is output as a top-level field `defaultBranch`. If `repository` is also requested, it is additionally written into `restRepository.defaultBranch`.
+- An explicitly empty value is invalid: `--show-details ""` will return an error.
+
 Create repositories from YAML
 ```
 $ bbctl repo create -i examples/repos/create.yaml 
@@ -267,6 +286,66 @@ $ bbctl repo required-build create -i examples/repos/required-builds/create.yaml
 time=2025-08-21T15:37:30.690+03:00 level=INFO msg="Created required build merge check" project=project_1 slug=repo2 buildKey=14
 time=2025-08-21T15:37:30.697+03:00 level=INFO msg="Created required build merge check" project=project_1 slug=repo2 buildKey=15
 
+```
+
+### GitOps: diff/apply for required-builds
+Compare two YAML/JSON files (source = current state, target = desired state), get a structured diff (create/update/delete), optionally apply to Bitbucket, save rollback plan, and export results.
+
+```
+# Show diff
+bbctl repo required-build diff \
+  --source out/task1/rb_v1.json \
+  --target out/task1/rb_v2.json -o json
+
+# Apply diff (delete -> update -> create) and save rollback plan
+bbctl repo required-build diff \
+  --source out/task1/rb_v1.json \
+  --target out/task1/rb_v2.json \
+  --apply -o yaml \
+  --apply-rollback-out out/rollback-required-builds.yaml
+
+# Save only created+updated items (grouped by repo) to file, stdout unchanged
+bbctl repo required-build diff \
+  --source s.json --target t.json \
+  --apply -o json \
+  --apply-result-out out/created-updated-required-builds.json
+
+# Force all target items whose id exists in source into update section
+bbctl repo required-build diff --source s.json --target t.json --force-update -o json
+
+# Rollback previously applied changes
+bbctl repo required-build diff --rollback out/rollback-required-builds.yaml -o json
+```
+
+Notes:
+- --apply-result-out accepts only a file path; output format is controlled by -o (json/yaml). Stdout prints the normal apply result.
+- --apply-rollback-out and --apply-result-out are valid only together with --apply.
+- Update operations skip 404 (missing item) gracefully.
+
+### GitOps: diff/apply for webhooks
+The same workflow is available for webhooks.
+
+```
+# Show diff
+bbctl repo webhook diff --source hooks_v1.json --target hooks_v2.json -o json
+
+# Apply and save rollback plan
+bbctl repo webhook diff \
+  --source hooks_v1.json --target hooks_v2.json \
+  --apply -o yaml \
+  --apply-rollback-out out/rollback-webhooks.yaml
+
+# Save only created+updated webhooks to file (grouped by repo)
+bbctl repo webhook diff \
+  --source hooks_v1.json --target hooks_v2.json \
+  --apply -o json \
+  --apply-result-out out/created-updated-webhooks.json
+
+# Force-update by id
+bbctl repo webhook diff --source hooks_v1.json --target hooks_v2.json --force-update -o json
+
+# Rollback
+bbctl repo webhook diff --rollback out/rollback-webhooks.yaml -o json
 ```
 
 ## User Management Examples

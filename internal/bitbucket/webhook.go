@@ -198,6 +198,13 @@ func (c *Client) UpdateWebhooks(repos []models.ExtendedRepository) ([]models.Ext
 			if err != nil {
 				if httpResp != nil {
 					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+					if httpResp.StatusCode == 404 {
+						c.logger.Info("Webhook not found during update, skipping",
+							"project", j.repo.ProjectKey,
+							"repo", j.repo.RepositorySlug,
+							"id", utils.Int32PtrToString(j.webhook.Id))
+						continue
+					}
 				}
 				errCh <- fmt.Errorf("failed to update webhook %s in %s/%s: %w", utils.Int32PtrToString(j.webhook.Id), j.repo.ProjectKey, j.repo.RepositorySlug, err)
 				continue
@@ -289,19 +296,26 @@ func (c *Client) DeleteWebhooks(repos []models.ExtendedRepository) error {
 				DeleteWebhook1(c.authCtx, j.repo.ProjectKey, utils.Int32PtrToString(j.webhook.Id), j.repo.RepositorySlug).
 				Execute()
 			if err != nil {
+				if httpResp != nil {
+					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+					if httpResp.StatusCode == 404 {
+						c.logger.Info("Webhook was already absent (404), skipping",
+							"project", j.repo.ProjectKey,
+							"repo", j.repo.RepositorySlug,
+							"id", utils.Int32PtrToString(j.webhook.Id))
+						continue
+					}
+				}
 				c.logger.Error("Delete webhook failed",
 					"project", j.repo.ProjectKey,
 					"repo", j.repo.RepositorySlug,
 					"id", utils.Int32PtrToString(j.webhook.Id),
 					"error", err)
-				if httpResp != nil {
-					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
-				}
 				errCh <- err
 				continue
 			}
 
-			c.logger.Info("Deleted webhook",
+			c.logger.Info("Deleted webhook (or was not present)",
 				"project", j.repo.ProjectKey,
 				"repo", j.repo.RepositorySlug,
 				"id", utils.Int32PtrToString(j.webhook.Id))
@@ -334,6 +348,40 @@ func (c *Client) DeleteWebhooks(repos []models.ExtendedRepository) error {
 		return fmt.Errorf("errors occurred deleting webhooks")
 	}
 	return nil
+}
+
+// AreWebhooksEqual compares two webhooks by relevant fields.
+// Credentials are intentionally ignored because they are not retrievable via GET and usually write-only.
+func AreWebhooksEqual(a, b openapi.RestWebhook) bool {
+	if !equalStringPtr(a.Name, b.Name) {
+		return false
+	}
+	if !equalStringPtr(a.Url, b.Url) {
+		return false
+	}
+	if !equalBoolPtr(a.Active, b.Active) {
+		return false
+	}
+	if !equalStringPtr(a.ScopeType, b.ScopeType) {
+		return false
+	}
+	if !equalBoolPtr(a.SslVerificationRequired, b.SslVerificationRequired) {
+		return false
+	}
+	if !equalStringSlices(a.Events, b.Events) {
+		return false
+	}
+	return true
+}
+
+func equalBoolPtr(a, b *bool) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	return *a == *b
 }
 
 // UpsertWebhookByName ensures that a webhook with the given name exists.

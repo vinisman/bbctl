@@ -43,6 +43,26 @@ fi
 GO_VERSION=$(go version | awk '{print $3}' | sed 's/go//')
 echo -e "${GREEN}Go version: $GO_VERSION${NC}"
 
+# Mode: default builds for host platform into ./bbctl; "release" builds multi-platform archives
+MODE="${1:-local}"
+
+if [[ "$MODE" != "release" ]]; then
+    echo -e "${YELLOW}Building for host platform...${NC}"
+
+    # Build flags - remove 'v' prefix if it exists
+    VERSION_CLEAN=$(echo "$VERSION" | sed 's/^v//')
+    LDFLAGS="-X 'github.com/vinisman/bbctl/cmd.Version=$VERSION_CLEAN' -X 'github.com/vinisman/bbctl/cmd.Commit=$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')'"
+
+    export CGO_ENABLED=0
+    if go build -ldflags "$LDFLAGS" -o "$PROJECT_NAME" .; then
+        echo -e "${GREEN}✓ Built successfully: $(pwd)/$PROJECT_NAME${NC}"
+        exit 0
+    else
+        echo -e "${RED}✗ Build failed${NC}"
+        exit 1
+    fi
+fi
+
 # Create build directory
 echo -e "${YELLOW}Creating build directory...${NC}"
 mkdir -p "$BUILD_DIR"

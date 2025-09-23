@@ -15,6 +15,7 @@ func RepoRequiredBuildCmd() *cobra.Command {
 		CreateRequiredBuildCmd(),
 		UpdateRequiredBuildCmd(),
 		DeleteRequiredBuildCmd(),
+		DiffRequiredBuildCmd(),
 	)
 
 	return cmd
