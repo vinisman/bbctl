@@ -2,7 +2,9 @@ package utils
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/vinisman/bbctl/internal/models"
@@ -274,12 +276,18 @@ func WriteRollbackPlan(path, format string, plan *models.RollbackPlan) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0644)
+	return os.WriteFile(path, data, 0600)
 }
 
 // ReadRollbackPlan reads a rollback plan from JSON or YAML file
 func ReadRollbackPlan(path string) (*models.RollbackPlan, error) {
-	raw, err := os.ReadFile(path)
+	// Validate file path to prevent directory traversal
+	cleanPath := filepath.Clean(path)
+	if strings.Contains(cleanPath, "..") {
+		return nil, fmt.Errorf("invalid file path: directory traversal detected")
+	}
+	
+	raw, err := os.ReadFile(cleanPath)
 	if err != nil {
 		return nil, err
 	}
