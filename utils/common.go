@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 
 	"github.com/vinisman/bbctl/internal/config"
@@ -57,16 +56,9 @@ func ParseColumnsToLower(columns string) []string {
 
 func isSafePath(path string) bool {
 	cleanPath := filepath.Clean(path)
-	decision := true
-	if runtime.GOOS == "windows" {
-		if strings.Contains(cleanPath, "..") {
-			decision = false
-		}
-	} else {
-		if strings.Contains(cleanPath, "..") || strings.Contains(cleanPath, "~") {
-			decision = false
-		}
-	}
+	// Allow relative paths (including ..) and absolute paths.
+	// We only reject empty paths or ones containing NUL.
+	decision := cleanPath != "" && !strings.ContainsRune(cleanPath, '\x00')
 	config.GlobalLogger.Debug("isSafePath check",
 		"original_path", path,
 		"cleaned_path", cleanPath,
