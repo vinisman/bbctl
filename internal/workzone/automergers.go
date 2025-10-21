@@ -1,6 +1,8 @@
 package workzone
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"sync"
 
@@ -85,6 +87,25 @@ func (c *Client) SetBranchAutomergersList(projectKey, repoSlug string, items []w
 	}
 	httpResp, err := c.api.DefaultAPI.SetBranchAutomergersList(c.ctx, projectKey, repoSlug).RestBranchAutoMergers(items).Execute()
 	if err != nil {
+		if ge, ok := err.(*wz.GenericOpenAPIError); ok {
+			if config.GlobalLogger != nil {
+				config.GlobalLogger.Debug("Workzone automergers set error body", "projectKey", projectKey, "repoSlug", repoSlug, "body", string(ge.Body()))
+			}
+		}
+		// Fallback: some Workzone versions respond 500 while actually applying the change.
+		if httpResp != nil && httpResp.StatusCode == 500 {
+			current, _, getErr := c.api.DefaultAPI.GetBranchAutomergersList(c.ctx, projectKey, repoSlug).Execute()
+			if getErr == nil {
+				wantJSON, _ := json.Marshal(items)
+				gotJSON, _ := json.Marshal(current)
+				if bytes.Equal(wantJSON, gotJSON) {
+					if config.GlobalLogger != nil {
+						config.GlobalLogger.Warn("Workzone returned HTTP 500 but state matches desired mergerules; treating as success", "projectKey", projectKey, "repoSlug", repoSlug)
+					}
+					return nil
+				}
+			}
+		}
 		if httpResp != nil {
 			return fmt.Errorf("set automergers list failed: http %d: %w", httpResp.StatusCode, err)
 		}

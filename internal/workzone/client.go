@@ -20,9 +20,21 @@ func NewClient(bc *bb.Client) *Client {
 	base = strings.TrimRight(base, "/") + "/workzoneresource/latest"
 	cfg.Servers = wz.ServerConfigurations{wz.ServerConfiguration{URL: base}}
 
-	for k, v := range bc.API().GetConfig().DefaultHeader {
-		cfg.AddDefaultHeader(k, v)
+	// Copy only essential headers from Bitbucket client
+	if userAgent := bc.API().GetConfig().DefaultHeader["User-Agent"]; userAgent != "" {
+		cfg.AddDefaultHeader("User-Agent", userAgent)
 	}
+	if authHeader := bc.API().GetConfig().DefaultHeader["Authorization"]; authHeader != "" {
+		cfg.AddDefaultHeader("Authorization", authHeader)
+	}
+	if atlassianToken := bc.API().GetConfig().DefaultHeader["X-Atlassian-Token"]; atlassianToken != "" {
+		cfg.AddDefaultHeader("X-Atlassian-Token", atlassianToken)
+	}
+
+	// Add JSON-specific headers for Workzone API
+	cfg.AddDefaultHeader("Accept", "application/json")
+	// Content-Type should be set by the SDK automatically for each request
+
 	if bc.API().GetConfig().HTTPClient != nil {
 		cfg.HTTPClient = bc.API().GetConfig().HTTPClient
 	}
