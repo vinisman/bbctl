@@ -2,7 +2,6 @@ package workzone
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -54,27 +53,9 @@ Examples:
 			}
 
 			// Normalize requested sections; default to all if none specified
-			normalized := map[string]bool{}
-			if len(sections) == 0 {
-				normalized["properties"] = true
-				normalized["reviewers"] = true
-				normalized["signatures"] = true
-				normalized["mergerules"] = true
-			} else {
-				for _, s := range sections {
-					s = strings.TrimSpace(strings.ToLower(s))
-					switch s {
-					case "properties", "reviewers", "signatures", "mergerules":
-						normalized[s] = true
-					case "", "all":
-						normalized["properties"] = true
-						normalized["reviewers"] = true
-						normalized["signatures"] = true
-						normalized["mergerules"] = true
-					default:
-						return fmt.Errorf("unsupported --section: %s (supported: properties, reviewers, signatures, mergerules)", s)
-					}
-				}
+			normalized, err := normalizeSections(sections, true)
+			if err != nil {
+				return err
 			}
 
 			// Execute selected fetches sequentially (each is internally concurrent per repo)
@@ -88,32 +69,32 @@ Examples:
 			}
 			resCh := make(chan secRes, 4)
 			num := 0
-			if normalized["properties"] {
+			if normalized[SectionProperties] {
 				num++
 				go func() {
 					out, err := wzClient.GetRepoWorkflows(repos)
-					resCh <- secRes{kind: "properties", out: out, err: err}
+					resCh <- secRes{kind: SectionProperties, out: out, err: err}
 				}()
 			}
-			if normalized["reviewers"] {
+			if normalized[SectionReviewers] {
 				num++
 				go func() {
 					out, err := wzClient.GetReposReviewersList(repos)
-					resCh <- secRes{kind: "reviewers", out: out, err: err}
+					resCh <- secRes{kind: SectionReviewers, out: out, err: err}
 				}()
 			}
-			if normalized["signatures"] {
+			if normalized[SectionSignatures] {
 				num++
 				go func() {
 					out, err := wzClient.GetReposSignapprovers(repos)
-					resCh <- secRes{kind: "signatures", out: out, err: err}
+					resCh <- secRes{kind: SectionSignatures, out: out, err: err}
 				}()
 			}
-			if normalized["mergerules"] {
+			if normalized[SectionMergerules] {
 				num++
 				go func() {
 					out, err := wzClient.GetReposAutomergers(repos)
-					resCh <- secRes{kind: "mergerules", out: out, err: err}
+					resCh <- secRes{kind: SectionMergerules, out: out, err: err}
 				}()
 			}
 			for i := 0; i < num; i++ {
@@ -127,16 +108,16 @@ Examples:
 
 			// Build output fields
 			fields := []string{"projectKey", "repositorySlug"}
-			if normalized["properties"] {
+			if normalized[SectionProperties] {
 				fields = append(fields, "workzone.workflowProperties")
 			}
-			if normalized["reviewers"] {
+			if normalized[SectionReviewers] {
 				fields = append(fields, "workzone.reviewers")
 			}
-			if normalized["signatures"] {
+			if normalized[SectionSignatures] {
 				fields = append(fields, "workzone.signapprovers")
 			}
-			if normalized["mergerules"] {
+			if normalized[SectionMergerules] {
 				fields = append(fields, "workzone.mergerules")
 			}
 			return utils.PrintStructured("repositories", agg, output, strings.Join(fields, ","))
@@ -154,38 +135,4 @@ repositories:
 `)
 
 	return cmd
-}
-
-// parseRepos is deprecated; use utils.ParseRepositoriesFromArgs instead
-
-func mergeSection(base, add []models.ExtendedRepository, kind string) []models.ExtendedRepository {
-	// index add by key/slug
-	type key struct{ p, r string }
-	addMap := make(map[key]models.ExtendedRepository, len(add))
-	for _, it := range add {
-		addMap[key{it.ProjectKey, it.RepositorySlug}] = it
-	}
-	out := make([]models.ExtendedRepository, len(base))
-	copy(out, base)
-	for i := range out {
-		k := key{out[i].ProjectKey, out[i].RepositorySlug}
-		if src, ok := addMap[k]; ok {
-			if out[i].Workzone == nil {
-				out[i].Workzone = &models.WorkzoneData{}
-			}
-			if src.Workzone != nil {
-				switch kind {
-				case "properties":
-					out[i].Workzone.WorkflowProperties = src.Workzone.WorkflowProperties
-				case "reviewers":
-					out[i].Workzone.Reviewers = src.Workzone.Reviewers
-				case "signatures":
-					out[i].Workzone.Signapprovers = src.Workzone.Signapprovers
-				case "mergerules":
-					out[i].Workzone.Mergerules = src.Workzone.Mergerules
-				}
-			}
-		}
-	}
-	return out
 }

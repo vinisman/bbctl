@@ -2,8 +2,6 @@ package workzone
 
 import (
 	"context"
-	"fmt"
-	"strings"
 
 	"github.com/spf13/cobra"
 	bb "github.com/vinisman/bbctl/internal/bitbucket"
@@ -44,66 +42,19 @@ Notes:
 				return err
 			}
 
-			normalized := map[string]bool{}
-			if len(deleteSections) == 0 {
-				return fmt.Errorf("please specify --section (properties, reviewers, signatures, mergerules)")
-			}
-			for _, s := range deleteSections {
-				s = strings.TrimSpace(strings.ToLower(s))
-				switch s {
-				case "properties", "reviewers", "signatures", "mergerules":
-					normalized[s] = true
-				default:
-					return fmt.Errorf("unsupported --section: %s (supported: properties, reviewers, signatures, mergerules)", s)
-				}
+			normalized, err := normalizeSections(deleteSections, false)
+			if err != nil {
+				return err
 			}
 
-			successCount := 0
-			totalSections := 0
-
-			if normalized["properties"] {
-				totalSections++
-				if err := wzClient.RemoveReposWorkflowProperties(repos); err != nil {
-					client.Logger.Error(err.Error())
-				} else {
-					successCount++
-					client.Logger.Info(fmt.Sprintf("Successfully removed workflow properties for %d repositories", len(repos)))
-				}
-			}
-			if normalized["reviewers"] {
-				totalSections++
-				if err := wzClient.DeleteReposReviewersList(repos); err != nil {
-					client.Logger.Error(err.Error())
-				} else {
-					successCount++
-					client.Logger.Info(fmt.Sprintf("Successfully deleted reviewers for %d repositories", len(repos)))
-				}
-			}
-			if normalized["signatures"] {
-				totalSections++
-				if err := wzClient.DeleteReposSignapprovers(repos); err != nil {
-					client.Logger.Error(err.Error())
-				} else {
-					successCount++
-					client.Logger.Info(fmt.Sprintf("Successfully deleted sign approvers for %d repositories", len(repos)))
-				}
-			}
-			if normalized["mergerules"] {
-				totalSections++
-				if err := wzClient.DeleteReposAutomergers(repos); err != nil {
-					client.Logger.Error(err.Error())
-				} else {
-					successCount++
-					client.Logger.Info(fmt.Sprintf("Successfully deleted mergerules for %d repositories", len(repos)))
-				}
+			operations := map[string]sectionOperation{
+				SectionProperties: {execute: wzClient.RemoveReposWorkflowProperties, message: "removed workflow properties"},
+				SectionReviewers:  {execute: wzClient.DeleteReposReviewersList, message: "deleted reviewers"},
+				SectionSignatures: {execute: wzClient.DeleteReposSignapprovers, message: "deleted sign approvers"},
+				SectionMergerules: {execute: wzClient.DeleteReposAutomergers, message: "deleted mergerules"},
 			}
 
-			if successCount == totalSections {
-				client.Logger.Info(fmt.Sprintf("All %d sections deleted successfully for %d repositories", totalSections, len(repos)))
-			} else if successCount > 0 {
-				client.Logger.Warn(fmt.Sprintf("Deleted %d/%d sections successfully for %d repositories", successCount, totalSections, len(repos)))
-			}
-
+			executeSections(client.Logger, repos, normalized, operations)
 			return nil
 		},
 	}

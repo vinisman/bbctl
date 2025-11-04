@@ -2,7 +2,6 @@ package workzone
 
 import (
 	"fmt"
-	"sync"
 
 	"github.com/vinisman/bbctl/internal/config"
 	"github.com/vinisman/bbctl/internal/models"
@@ -36,50 +35,19 @@ func (c *Client) GetRepoReviewersList(projectKey, repoSlug string) (*models.Work
 
 // GetReposReviewersList concurrently fetches reviewers for multiple repos
 func (c *Client) GetReposReviewersList(repos []models.ExtendedRepository) ([]models.ExtendedRepository, error) {
-	if len(repos) == 0 {
-		return repos, nil
-	}
-
-	maxWorkers := config.GlobalMaxWorkers
-	sem := make(chan struct{}, maxWorkers)
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-	var errs []error
-
-	out := make([]models.ExtendedRepository, len(repos))
-	copy(out, repos)
-
-	for i := range out {
-		wg.Add(1)
-		go func(idx int) {
-			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
-
-			r := out[idx]
-			data, err := c.GetRepoReviewersList(r.ProjectKey, r.RepositorySlug)
+	return batchGetOperation(
+		repos,
+		func(projectKey, repoSlug string) ([]wz.RestBranchReviewers, error) {
+			data, err := c.GetRepoReviewersList(projectKey, repoSlug)
 			if err != nil {
-				mu.Lock()
-				errs = append(errs, fmt.Errorf("%s/%s: %v", r.ProjectKey, r.RepositorySlug, err))
-				mu.Unlock()
-				return
+				return nil, err
 			}
-			mu.Lock()
-			if out[idx].Workzone == nil {
-				out[idx].Workzone = &models.WorkzoneData{}
-			}
-			out[idx].Workzone.Reviewers = data.Reviewers
-			mu.Unlock()
-		}(i)
-	}
-
-	wg.Wait()
-
-	if len(errs) > 0 {
-		return out, fmt.Errorf("errors occurred: %v", errs)
-	}
-
-	return out, nil
+			return data.Reviewers, nil
+		},
+		func(wz *models.WorkzoneData, items []wz.RestBranchReviewers) {
+			wz.Reviewers = items
+		},
+	)
 }
 
 // SetBranchReviewersList sets reviewers list for a repo
@@ -114,70 +82,23 @@ func (c *Client) DeleteBranchReviewersList(projectKey, repoSlug string) error {
 
 // SetReposReviewersList concurrently sets reviewers list for multiple repos
 func (c *Client) SetReposReviewersList(repos []models.ExtendedRepository) error {
-	if len(repos) == 0 {
+	return batchOperation(repos, func(r models.ExtendedRepository) error {
+		if r.Workzone == nil || len(r.Workzone.Reviewers) == 0 {
+			return fmt.Errorf("%s/%s: missing reviewers list", r.ProjectKey, r.RepositorySlug)
+		}
+		if err := c.SetBranchReviewersList(r.ProjectKey, r.RepositorySlug, r.Workzone.Reviewers); err != nil {
+			return fmt.Errorf("%s/%s: %w", r.ProjectKey, r.RepositorySlug, err)
+		}
 		return nil
-	}
-	maxWorkers := config.GlobalMaxWorkers
-	sem := make(chan struct{}, maxWorkers)
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-	var errs []error
-
-	for i := range repos {
-		wg.Add(1)
-		go func(r models.ExtendedRepository) {
-			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
-
-			if r.Workzone == nil || len(r.Workzone.Reviewers) == 0 {
-				mu.Lock()
-				errs = append(errs, fmt.Errorf("%s/%s: missing reviewers list", r.ProjectKey, r.RepositorySlug))
-				mu.Unlock()
-				return
-			}
-			if err := c.SetBranchReviewersList(r.ProjectKey, r.RepositorySlug, r.Workzone.Reviewers); err != nil {
-				mu.Lock()
-				errs = append(errs, fmt.Errorf("%s/%s: %v", r.ProjectKey, r.RepositorySlug, err))
-				mu.Unlock()
-			}
-		}(repos[i])
-	}
-	wg.Wait()
-	if len(errs) > 0 {
-		return fmt.Errorf("errors occurred: %v", errs)
-	}
-	return nil
+	})
 }
 
 // DeleteReposReviewersList concurrently deletes reviewers list for multiple repos
 func (c *Client) DeleteReposReviewersList(repos []models.ExtendedRepository) error {
-	if len(repos) == 0 {
+	return batchOperation(repos, func(r models.ExtendedRepository) error {
+		if err := c.DeleteBranchReviewersList(r.ProjectKey, r.RepositorySlug); err != nil {
+			return fmt.Errorf("%s/%s: %w", r.ProjectKey, r.RepositorySlug, err)
+		}
 		return nil
-	}
-	maxWorkers := config.GlobalMaxWorkers
-	sem := make(chan struct{}, maxWorkers)
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-	var errs []error
-
-	for i := range repos {
-		wg.Add(1)
-		go func(r models.ExtendedRepository) {
-			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
-
-			if err := c.DeleteBranchReviewersList(r.ProjectKey, r.RepositorySlug); err != nil {
-				mu.Lock()
-				errs = append(errs, fmt.Errorf("%s/%s: %v", r.ProjectKey, r.RepositorySlug, err))
-				mu.Unlock()
-			}
-		}(repos[i])
-	}
-	wg.Wait()
-	if len(errs) > 0 {
-		return fmt.Errorf("errors occurred: %v", errs)
-	}
-	return nil
+	})
 }

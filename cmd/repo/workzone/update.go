@@ -3,7 +3,6 @@ package workzone
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/spf13/cobra"
 	bb "github.com/vinisman/bbctl/internal/bitbucket"
@@ -49,66 +48,19 @@ Notes:
 				return err
 			}
 
-			normalized := map[string]bool{}
-			if len(updateSections) == 0 {
-				return fmt.Errorf("please specify --section (properties, reviewers, signatures, mergerules)")
-			}
-			for _, s := range updateSections {
-				s = strings.TrimSpace(strings.ToLower(s))
-				switch s {
-				case "properties", "reviewers", "signatures", "mergerules":
-					normalized[s] = true
-				default:
-					return fmt.Errorf("unsupported --section: %s (supported: properties, reviewers, signatures, mergerules)", s)
-				}
+			normalized, err := normalizeSections(updateSections, false)
+			if err != nil {
+				return err
 			}
 
-			successCount := 0
-			totalSections := 0
-
-			if normalized["properties"] {
-				totalSections++
-				if err := wzClient.UpdateReposWorkflowProperties(repos); err != nil {
-					client.Logger.Error(err.Error())
-				} else {
-					successCount++
-					client.Logger.Info(fmt.Sprintf("Successfully updated workflow properties for %d repositories", len(repos)))
-				}
-			}
-			if normalized["reviewers"] {
-				totalSections++
-				if err := wzClient.SetReposReviewersList(repos); err != nil {
-					client.Logger.Error(err.Error())
-				} else {
-					successCount++
-					client.Logger.Info(fmt.Sprintf("Successfully updated reviewers for %d repositories", len(repos)))
-				}
-			}
-			if normalized["signatures"] {
-				totalSections++
-				if err := wzClient.SetReposSignapprovers(repos); err != nil {
-					client.Logger.Error(err.Error())
-				} else {
-					successCount++
-					client.Logger.Info(fmt.Sprintf("Successfully updated sign approvers for %d repositories", len(repos)))
-				}
-			}
-			if normalized["mergerules"] {
-				totalSections++
-				if err := wzClient.SetReposAutomergers(repos); err != nil {
-					client.Logger.Error(err.Error())
-				} else {
-					successCount++
-					client.Logger.Info(fmt.Sprintf("Successfully updated mergerules for %d repositories", len(repos)))
-				}
+			operations := map[string]sectionOperation{
+				SectionProperties: {execute: wzClient.UpdateReposWorkflowProperties, message: "updated workflow properties"},
+				SectionReviewers:  {execute: wzClient.SetReposReviewersList, message: "updated reviewers"},
+				SectionSignatures: {execute: wzClient.SetReposSignapprovers, message: "updated sign approvers"},
+				SectionMergerules: {execute: wzClient.SetReposAutomergers, message: "updated mergerules"},
 			}
 
-			if successCount == totalSections {
-				client.Logger.Info(fmt.Sprintf("All %d sections updated successfully for %d repositories", totalSections, len(repos)))
-			} else if successCount > 0 {
-				client.Logger.Warn(fmt.Sprintf("Updated %d/%d sections successfully for %d repositories", successCount, totalSections, len(repos)))
-			}
-
+			executeSections(client.Logger, repos, normalized, operations)
 			return nil
 		},
 	}
