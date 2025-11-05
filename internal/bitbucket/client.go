@@ -19,6 +19,16 @@ type Client struct {
 	Logger  *slog.Logger
 }
 
+// API exposes the underlying Bitbucket API client (read-only usage outside)
+func (c *Client) API() *openapi.APIClient {
+	return c.api
+}
+
+// Context exposes the auth context for reuse by sibling clients (read-only)
+func (c *Client) Context() context.Context {
+	return c.authCtx
+}
+
 func NewClient(ctx context.Context) (*Client, error) {
 	config.GlobalLogger.Debug("Initializing Bitbucket client")
 

@@ -1,0 +1,22 @@
+repositories:
+  - projectKey: PROJECT
+    repositorySlug: repo
+    workzone:
+      reviewers:
+        - refName: refs/heads/main
+          refPattern: main
+          users:
+            - { name: jcitizen }
+          groups:
+            - devs
+          mandatoryUsers:
+            - { name: jadmin }
+          mandatoryGroups:
+            - leads
+          topSuggestedReviewers: 3
+          daysInPast: 90
+          filePathReviewers:
+            - filePathPattern: "src/**"
+              users:
+                - { name: jcitizen }
+

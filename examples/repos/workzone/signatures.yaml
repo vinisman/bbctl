@@ -1,0 +1,16 @@
+repositories:
+  - projectKey: PROJECT
+    repositorySlug: repo
+    workzone:
+      signapprovers:
+        - refName: refs/heads/main
+          refPattern: main
+          users:
+            - { name: jcitizen }
+          groups:
+            - compliance
+          mandatoryUsers:
+            - { name: director }
+          mandatoryGroups:
+            - security
+

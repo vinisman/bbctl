@@ -4,6 +4,7 @@ import (
 	"github.com/spf13/cobra"
 	requiredbuild "github.com/vinisman/bbctl/cmd/repo/required-build"
 	"github.com/vinisman/bbctl/cmd/repo/webhook"
+	workzonecmd "github.com/vinisman/bbctl/cmd/repo/workzone"
 )
 
 func NewRepoCmd() *cobra.Command {
@@ -26,6 +27,9 @@ func NewRepoCmd() *cobra.Command {
 
 		// required-builds
 		requiredbuild.RepoRequiredBuildCmd(),
+
+		// workzone
+		workzonecmd.RepoWorkzoneCmd(),
 	)
 
 	return cmd

@@ -2,6 +2,7 @@ package utils
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"sort"
 	"strings"
@@ -28,7 +29,7 @@ func WriteRepositoriesToFile(path string, repos []models.ExtendedRepository, for
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0644)
+	return os.WriteFile(path, data, 0600)
 }
 
 // GroupRepositories merges items for the same repo and deduplicates both required-builds and webhooks by id.
@@ -178,4 +179,33 @@ func SortRepositoriesStable(repos []models.ExtendedRepository) []models.Extended
 		return out[i].ProjectKey < out[j].ProjectKey
 	})
 	return out
+}
+
+// ParseRepositoriesFromArgs parses repositories from either repoIdent (comma-separated project/repo) or input file/stdin.
+// If input is provided, it takes precedence. Returns error if neither is provided.
+func ParseRepositoriesFromArgs(repoIdent, input string) ([]models.ExtendedRepository, error) {
+	var repos []models.ExtendedRepository
+	if input != "" {
+		var parsed models.RepositoryYaml
+		if err := ParseFile(input, &parsed); err != nil {
+			return nil, err
+		}
+		return parsed.Repositories, nil
+	}
+	if repoIdent == "" {
+		return nil, fmt.Errorf("please specify --input or --repositorySlug")
+	}
+	items := strings.Split(repoIdent, ",")
+	for _, item := range items {
+		item = strings.TrimSpace(item)
+		parts := strings.SplitN(item, "/", 2)
+		if len(parts) != 2 || parts[1] == "" {
+			return nil, fmt.Errorf("invalid repository identifier format: %s", item)
+		}
+		repos = append(repos, models.ExtendedRepository{
+			ProjectKey:     parts[0],
+			RepositorySlug: parts[1],
+		})
+	}
+	return repos, nil
 }

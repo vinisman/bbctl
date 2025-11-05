@@ -1,6 +1,9 @@
 package models
 
-import "github.com/vinisman/bitbucket-sdk-go/openapi"
+import (
+	openapi "github.com/vinisman/bitbucket-sdk-go/openapi"
+	workzone "github.com/vinisman/workzone-sdk-go/client"
+)
 
 type WebhookResponse struct {
 	Size       int                   `json:"size,omitempty" yaml:"size,omitempty"`
@@ -19,6 +22,16 @@ type ExtendedRepository struct {
 	Webhooks       *[]openapi.RestWebhook                `json:"webhooks,omitempty" yaml:"webhooks,omitempty"`
 	Manifest       *map[string]interface{}               `json:"manifest,omitempty" yaml:"manifest,omitempty"`
 	RequiredBuilds *[]openapi.RestRequiredBuildCondition `json:"requiredBuilds,omitempty" yaml:"requiredBuilds,omitempty"`
+	Workzone       *WorkzoneData                         `json:"workzone,omitempty" yaml:"workzone,omitempty"`
+}
+
+// WorkzoneData groups Workzone-related sections for a repository
+type WorkzoneData struct {
+	WorkflowProperties *workzone.WorkflowProperties `json:"workflowProperties,omitempty" yaml:"workflowProperties,omitempty"`
+	// Future sections: Reviewers, AutoMergers, Signatures, GlobalConfig, etc.
+	Reviewers     []workzone.RestBranchReviewers     `json:"reviewers,omitempty" yaml:"reviewers,omitempty"`
+	Signapprovers []workzone.RestBranchSignapprovers `json:"signapprovers,omitempty" yaml:"signapprovers,omitempty"`
+	Mergerules    []workzone.RestBranchAutoMergers   `json:"mergerules,omitempty" yaml:"mergerules,omitempty"`
 }
 
 type RepositoryOptions struct {

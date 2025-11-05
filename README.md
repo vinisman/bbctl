@@ -43,6 +43,11 @@ BITBUCKET_PAGE_SIZE=50
   - Required builds
   - Manifest file information (from the root of the repository)
   - Default branch
+- **Workzone plugin management** for repositories:
+  - **Properties**: Repository workflow properties
+  - **Reviewers**: Branch reviewers list
+  - **Signatures**: Branch sign approvers list
+  - **Mergerules**: Branch automergers list
 
 ### For users
 - **Create** new users (with secure password handling)
@@ -420,6 +425,194 @@ users:
     displayName: "User Two"
     emailAddress: user2@example.com
 ```
+
+## Workzone Plugin Management Examples
+
+The Workzone plugin provides advanced repository workflow management capabilities. bbctl supports all four main sections of the Workzone plugin.
+
+### Get Workzone settings
+
+Get all Workzone settings for a repository
+```bash
+$ bbctl repo workzone get -s PROJECT_1/repo1 -o yaml
+repositories:
+  - projectKey: PROJECT_1
+    repositorySlug: repo1
+    workzone:
+      workflowProperties:
+        enableWorkflow: true
+        workflowName: "Standard Workflow"
+      reviewers:
+        - refName: refs/heads/main
+          users: [{ name: "reviewer1" }]
+          groups: ["developers"]
+      signapprovers:
+        - refName: refs/heads/main
+          users: [{ name: "signer1" }]
+          groups: ["seniors"]
+      mergerules:
+        - refName: refs/heads/main
+          approvalQuotaEnabled: true
+          mergeStrategyId: "squash"
+```
+
+Get specific sections only
+```bash
+$ bbctl repo workzone get -s PROJECT_1/repo1 --section properties,reviewers -o yaml
+```
+
+Get settings for multiple repositories
+```bash
+$ bbctl repo workzone get -s PROJECT_1/repo1,PROJECT_1/repo2 --section mergerules -o yaml
+```
+
+### Set Workzone settings
+
+Set workflow properties for a repository
+```bash
+$ bbctl repo workzone set -s PROJECT_1/repo1 --section properties -i examples/repos/workzone/properties.yaml
+INFO Successfully set workflow properties for 1 repositories
+INFO All 1 sections completed successfully for 1 repositories
+```
+
+Set multiple sections from YAML file
+```bash
+$ bbctl repo workzone set --section properties,reviewers,signatures,mergerules -i workzone-settings.yaml
+INFO Successfully set workflow properties for 5 repositories
+INFO Successfully set reviewers for 5 repositories
+INFO Successfully set sign approvers for 5 repositories
+INFO Successfully set mergerules for 5 repositories
+INFO All 4 sections completed successfully for 5 repositories
+```
+
+### Update Workzone settings
+
+Update workflow properties (merge with existing)
+```bash
+$ bbctl repo workzone update -s PROJECT_1/repo1 --section properties -i updated-properties.yaml
+INFO Successfully updated workflow properties for 1 repositories
+INFO All 1 sections updated successfully for 1 repositories
+```
+
+Replace lists (reviewers, signatures, mergerules)
+```bash
+$ bbctl repo workzone update --section reviewers,signatures -i new-lists.yaml
+INFO Successfully updated reviewers for 3 repositories
+INFO Successfully updated sign approvers for 3 repositories
+INFO All 2 sections updated successfully for 3 repositories
+```
+
+### Delete Workzone settings
+
+Delete specific sections
+```bash
+$ bbctl repo workzone delete -s PROJECT_1/repo1 --section reviewers,signatures
+INFO Successfully deleted reviewers for 1 repositories
+INFO Successfully deleted sign approvers for 1 repositories
+INFO All 2 sections deleted successfully for 1 repositories
+```
+
+Delete from multiple repositories
+```bash
+$ bbctl repo workzone delete --section mergerules -i repos-to-clean.yaml
+INFO Successfully deleted mergerules for 10 repositories
+INFO All 1 sections deleted successfully for 10 repositories
+```
+
+### Example YAML files
+
+**Properties** (`examples/repos/workzone/properties.yaml`):
+```yaml
+repositories:
+  - projectKey: PROJECT
+    repositorySlug: repo
+    workzone:
+      workflowProperties:
+        enableWorkflow: true
+        workflowName: "Standard Workflow"
+        autoMergeEnabled: false
+```
+
+**Reviewers** (`examples/repos/workzone/reviewers.yaml`):
+```yaml
+repositories:
+  - projectKey: PROJECT
+    repositorySlug: repo
+    workzone:
+      reviewers:
+        - refName: refs/heads/main
+          users:
+            - { name: "reviewer1" }
+            - { name: "reviewer2" }
+          groups:
+            - "developers"
+            - "seniors"
+        - refName: refs/heads/develop
+          users:
+            - { name: "lead" }
+          groups:
+            - "tech-leads"
+```
+
+**Signatures** (`examples/repos/workzone/signatures.yaml`):
+```yaml
+repositories:
+  - projectKey: PROJECT
+    repositorySlug: repo
+    workzone:
+      signapprovers:
+        - refName: refs/heads/main
+          users:
+            - { name: "signer1" }
+            - { name: "signer2" }
+          groups:
+            - "seniors"
+        - refName: refs/heads/release/*
+          users:
+            - { name: "release-manager" }
+          groups:
+            - "release-team"
+```
+
+**Mergerules** (`examples/repos/workzone/mergerules.yaml`):
+```yaml
+repositories:
+  - projectKey: PROJECT
+    repositorySlug: repo
+    workzone:
+      mergerules:
+        - projectkey: PROJECT
+          reposlug: repo
+          refname: refs/heads/trunk
+          refpattern: null
+          srcrefname: null
+          srcrefpattern: null
+          automergeusers: []
+          approvalquotaenabled: true
+          approvalquota: "100"
+          approvalcount: 0
+          mandatoryapprovalcount: 0
+          deletesourcebranch: false
+          watchbuildresult: false
+          watchtaskcompletion: false
+          requiredbuildscount: 0
+          requiredsignaturescount: 0
+          groupquota: 0
+          mergecondition: null
+          mergestrategyid: none-inherit
+          ignorecontributingreviewersapproval: false
+          enableneedsworkveto: null
+```
+
+### Notes about Workzone commands
+
+- **Parallel processing**: All commands support parallel processing when working with multiple repositories
+- **Section selection**: Use `--section` to specify which Workzone sections to operate on (properties, reviewers, signatures, mergerules)
+- **Default behavior**: If no `--section` is specified for `get` command, all sections are fetched
+- **Input format**: All commands accept YAML/JSON input files or repository identifiers via `--repositorySlug`
+- **Feedback**: Commands provide detailed feedback about successful operations and error handling
+- **Plugin compatibility**: Section names match the Workzone plugin tab names for easy identification
+- **Performance**: Fetching all sections by default may be slower than selecting specific sections, especially for repositories with many branches or complex configurations
 
 
 ## 💰 Support the project

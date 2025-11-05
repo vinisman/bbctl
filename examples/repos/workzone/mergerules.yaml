@@ -1,0 +1,27 @@
+repositories:
+  - projectKey: PROJECT
+    repositorySlug: repo
+    workzone:
+      mergerules:
+        - projectkey: PROJECT
+          reposlug: repo
+          refname: refs/heads/trunk
+          refpattern: null
+          srcrefname: null
+          srcrefpattern: null
+          automergeusers: []
+          approvalquotaenabled: true
+          approvalquota: "100"
+          approvalcount: 0
+          mandatoryapprovalcount: 0
+          deletesourcebranch: false
+          watchbuildresult: false
+          watchtaskcompletion: false
+          requiredbuildscount: 0
+          requiredsignaturescount: 0
+          groupquota: 0
+          mergecondition: null
+          mergestrategyid: none-inherit
+          ignorecontributingreviewersapproval: false
+          enableneedsworkveto: null
+

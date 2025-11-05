@@ -1,0 +1,18 @@
+repositories:
+  - projectKey: PROJECT
+    repositorySlug: repo
+    workzone:
+      workflowProperties:
+        projectKey: PROJECT
+        repoSlug: repo
+        refName: refs/heads/main
+        refPattern: main
+        srcRefName: refs/heads/*
+        srcRefPattern: '*'
+        pushAfterPullReq: true
+        unapprovePullReqSrcCommit: true
+        unapprovePullReq: false
+        unapprovePullReqTargetRefChange: true
+        enableMergeConditionVeto: true
+        inheritedMergeConditionVetoEnabled: true
+
