@@ -1,0 +1,27 @@
+repositories:
+  - projectKey: DEV
+    repositorySlug: my-repo
+    reviewerGroups:
+      - name: senior-developers
+        description: "Senior developers for code review"
+        users:
+          # Option 1: Only username (ID will be fetched automatically)
+          - name: john.doe
+          - name: jane.smith
+      - name: team-leads
+        description: "Team leads group"
+        users:
+          # Option 2: Username with ID (no additional API call needed)
+          - name: alice.johnson
+            id: 123
+          - name: bob.wilson
+            id: 124
+  - projectKey: DEV
+    repositorySlug: another-repo
+    reviewerGroups:
+      - name: architects
+        description: "Architecture review team"
+        users:
+          - name: senior.architect
+          - name: tech.lead
+

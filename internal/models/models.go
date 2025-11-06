@@ -22,6 +22,7 @@ type ExtendedRepository struct {
 	Webhooks       *[]openapi.RestWebhook                `json:"webhooks,omitempty" yaml:"webhooks,omitempty"`
 	Manifest       *map[string]interface{}               `json:"manifest,omitempty" yaml:"manifest,omitempty"`
 	RequiredBuilds *[]openapi.RestRequiredBuildCondition `json:"requiredBuilds,omitempty" yaml:"requiredBuilds,omitempty"`
+	ReviewerGroups *[]openapi.RestReviewerGroup          `json:"reviewerGroups,omitempty" yaml:"reviewerGroups,omitempty"`
 	Workzone       *WorkzoneData                         `json:"workzone,omitempty" yaml:"workzone,omitempty"`
 }
 

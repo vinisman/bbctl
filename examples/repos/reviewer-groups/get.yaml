@@ -1,0 +1,8 @@
+repositories:
+  - projectKey: DEV
+    repositorySlug: my-repo
+  - projectKey: DEV
+    repositorySlug: another-repo
+  - projectKey: PROD
+    repositorySlug: main-app
+

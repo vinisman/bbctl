@@ -1,0 +1,17 @@
+repositories:
+  - projectKey: DEV
+    repositorySlug: my-repo
+    reviewerGroups:
+      - id: 123
+        name: senior-developers
+        description: "Updated: Senior developers for code review"
+        users:
+          - name: john.doe
+          - name: jane.smith
+          - name: new.developer
+      - id: 124
+        name: team-leads
+        description: "Updated team leads group"
+        users:
+          - name: alice.johnson
+
