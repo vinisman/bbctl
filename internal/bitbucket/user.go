@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/vinisman/bbctl/internal/config"
 	"github.com/vinisman/bbctl/utils"
 	openapi "github.com/vinisman/bitbucket-sdk-go/openapi"
 )
@@ -160,13 +161,11 @@ func (c *Client) CreateUsers(users []openapi.RestApplicationUser, passwords []st
 	jobs := make(chan job, len(users))
 
 	// Start workers
-	maxWorkers := 5 // Use same as projects
+	maxWorkers := config.GlobalMaxWorkers
 	var wg sync.WaitGroup
 
 	for range maxWorkers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for j := range jobs {
 				// Build the request using the fluent API
 				req := c.api.PermissionManagementAPI.CreateUser(c.authCtx).Name(*j.user.Name)
@@ -196,7 +195,7 @@ func (c *Client) CreateUsers(users []openapi.RestApplicationUser, passwords []st
 					resultsCh <- result{index: j.index, user: &j.user}
 				}
 			}
-		}()
+		})
 	}
 
 	// Send jobs
@@ -258,13 +257,11 @@ func (c *Client) DeleteUsers(usernames []string) ([]openapi.RestApplicationUser,
 	jobs := make(chan job, len(usernames))
 
 	// Start workers
-	maxWorkers := 5
+	maxWorkers := config.GlobalMaxWorkers
 	var wg sync.WaitGroup
 
 	for range maxWorkers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for j := range jobs {
 				// Delete user
 				_, httpResp, err := c.api.PermissionManagementAPI.DeleteUser(c.authCtx).Name(j.username).Execute()
@@ -281,7 +278,7 @@ func (c *Client) DeleteUsers(usernames []string) ([]openapi.RestApplicationUser,
 					resultsCh <- result{index: j.index, user: user}
 				}
 			}
-		}()
+		})
 	}
 
 	// Send jobs
@@ -339,13 +336,11 @@ func (c *Client) UpdateUsers(users []openapi.RestApplicationUser) ([]openapi.Res
 	jobs := make(chan job, len(users))
 
 	// Start workers
-	maxWorkers := 5
+	maxWorkers := config.GlobalMaxWorkers
 	var wg sync.WaitGroup
 
 	for range maxWorkers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for j := range jobs {
 				// Get current user data first
 				currentUser, err := c.getSingleUser(*j.user.Name)
@@ -378,7 +373,7 @@ func (c *Client) UpdateUsers(users []openapi.RestApplicationUser) ([]openapi.Res
 					resultsCh <- result{index: j.index, user: &updatedUser}
 				}
 			}
-		}()
+		})
 	}
 
 	// Send jobs
