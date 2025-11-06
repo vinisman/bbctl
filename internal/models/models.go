@@ -62,6 +62,15 @@ type UserYaml struct {
 	Users []User `json:"users,omitempty" yaml:"users,omitempty"`
 }
 
+// Group represents a group for YAML parsing (with string fields)
+type Group struct {
+	Name string `json:"name" yaml:"name"`
+}
+
+type GroupYaml struct {
+	Groups []Group `json:"groups,omitempty" yaml:"groups,omitempty"`
+}
+
 // RollbackPlan represents a set of repository-level changes that can be
 // executed (apply) or reversed (rollback). It is generic for different
 // domains (required-builds, webhooks) since the payload lives inside

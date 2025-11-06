@@ -7,6 +7,7 @@ import (
 
 	"github.com/joho/godotenv"
 	"github.com/spf13/cobra"
+	"github.com/vinisman/bbctl/cmd/group"
 	"github.com/vinisman/bbctl/cmd/project"
 	"github.com/vinisman/bbctl/cmd/repo"
 	"github.com/vinisman/bbctl/cmd/user"
@@ -100,6 +101,7 @@ func NewRootCmd() *cobra.Command {
 		repo.NewRepoCmd(),
 		project.NewProjectCmd(),
 		user.UserCmd(),
+		group.GroupCmd(),
 		versionCmd(),
 	)
 
