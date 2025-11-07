@@ -1,0 +1,11 @@
+repositories:
+  - projectKey: DEV
+    repositorySlug: my-repo
+    reviewerGroups:
+      - id: 123
+      - id: 124
+  - projectKey: DEV
+    repositorySlug: another-repo
+    reviewerGroups:
+      - id: 125
+

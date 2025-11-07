@@ -3,6 +3,7 @@ package repo
 import (
 	"github.com/spf13/cobra"
 	requiredbuild "github.com/vinisman/bbctl/cmd/repo/required-build"
+	reviewergroup "github.com/vinisman/bbctl/cmd/repo/reviewer-group"
 	"github.com/vinisman/bbctl/cmd/repo/webhook"
 	workzonecmd "github.com/vinisman/bbctl/cmd/repo/workzone"
 )
@@ -27,6 +28,9 @@ func NewRepoCmd() *cobra.Command {
 
 		// required-builds
 		requiredbuild.RepoRequiredBuildCmd(),
+
+		// reviewer-groups
+		reviewergroup.RepoReviewerGroupCmd(),
 
 		// workzone
 		workzonecmd.RepoWorkzoneCmd(),

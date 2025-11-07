@@ -41,6 +41,7 @@ BITBUCKET_PAGE_SIZE=50
 - **Retrieve detailed info** for repositories, including:
   - Webhooks
   - Required builds
+  - Reviewer groups
   - Manifest file information (from the root of the repository)
   - Default branch
 - **Workzone plugin management** for repositories:
@@ -292,6 +293,132 @@ time=2025-08-21T15:37:30.690+03:00 level=INFO msg="Created required build merge 
 time=2025-08-21T15:37:30.697+03:00 level=INFO msg="Created required build merge check" project=project_1 slug=repo2 buildKey=15
 
 ```
+
+## Reviewer Groups Management Examples
+
+Reviewer groups allow you to configure default reviewers for pull requests at the repository level. bbctl supports creating, updating, deleting, and retrieving reviewer groups.
+
+### Get Reviewer Groups
+
+Get all reviewer groups for a repository
+```bash
+$ bbctl repo reviewer-group get -s PROJECT_1/repo1 -o yaml
+repositories:
+  - projectKey: PROJECT_1
+    repositorySlug: repo1
+    reviewerGroups:
+      - id: 1
+        name: senior-developers
+        description: "Senior developers for code review"
+        users:
+          - name: john.doe
+            id: 123
+          - name: jane.smith
+            id: 124
+```
+
+Get reviewer groups for multiple repositories
+```bash
+$ bbctl repo reviewer-group get -s PROJECT_1/repo1,PROJECT_1/repo2 -o json
+```
+
+Get reviewer groups from YAML file
+```bash
+$ bbctl repo reviewer-group get -i repositories.yaml -o yaml
+```
+
+### Create Reviewer Groups
+
+Create reviewer groups from YAML file
+```bash
+$ bbctl repo reviewer-group create -i examples/repos/reviewer-groups/create.yaml
+time=2025-11-06T18:05:09.258+03:00 level=INFO msg="Created reviewer group" project=PROJECT_1 repo=repo1 name=senior-developers id=1
+time=2025-11-06T18:05:09.297+03:00 level=INFO msg="Created reviewer group" project=PROJECT_1 repo=repo1 name=team-leads id=2
+```
+
+Example YAML file for creating reviewer groups (`examples/repos/reviewer-groups/create.yaml`):
+```yaml
+repositories:
+  - projectKey: DEV
+    repositorySlug: my-repo
+    reviewerGroups:
+      - name: senior-developers
+        description: "Senior developers for code review"
+        users:
+          # Option 1: Only username (ID will be fetched automatically)
+          - name: john.doe
+          - name: jane.smith
+      - name: team-leads
+        description: "Team leads group"
+        users:
+          # Option 2: Username with ID (no additional API call needed)
+          - name: alice.johnson
+            id: 123
+          - name: bob.wilson
+            id: 124
+```
+
+**Notes:**
+- Users can be specified with just `name` (bbctl will automatically fetch the user ID)
+- Alternatively, you can provide both `name` and `id` to avoid additional API calls
+- Only `name` and `id` fields are required by Bitbucket API
+
+### Update Reviewer Groups
+
+Update reviewer groups from YAML file (requires ID for each group)
+```bash
+$ bbctl repo reviewer-group update -i examples/repos/reviewer-groups/update.yaml
+time=2025-11-06T18:09:17.405+03:00 level=INFO msg="Updated reviewer group" project=DEV repo=my-repo name=senior-developers id=1
+```
+
+Example YAML file for updating reviewer groups (`examples/repos/reviewer-groups/update.yaml`):
+```yaml
+repositories:
+  - projectKey: DEV
+    repositorySlug: my-repo
+    reviewerGroups:
+      - id: 1
+        name: senior-developers
+        description: "Updated: Senior developers for code review"
+        users:
+          - name: john.doe
+          - name: jane.smith
+          - name: new.developer
+```
+
+**Note:** Each reviewer group must have an `id` field to identify which group to update.
+
+### Delete Reviewer Groups
+
+Delete reviewer groups by ID from command line
+```bash
+$ bbctl repo reviewer-group delete -k PROJECT_1 -s repo1 --ids 1,2
+time=2025-11-06T18:09:34.545+03:00 level=INFO msg="Deleted reviewer group" project=PROJECT_1 repo=repo1 id=1
+time=2025-11-06T18:09:34.546+03:00 level=INFO msg="Deleted reviewer group" project=PROJECT_1 repo=repo1 id=2
+```
+
+Delete reviewer groups from YAML file
+```bash
+$ bbctl repo reviewer-group delete -i examples/repos/reviewer-groups/delete.yaml
+```
+
+Example YAML file for deleting reviewer groups (`examples/repos/reviewer-groups/delete.yaml`):
+```yaml
+repositories:
+  - projectKey: DEV
+    repositorySlug: my-repo
+    reviewerGroups:
+      - id: 1
+      - id: 2
+```
+
+### Notes about Reviewer Groups
+
+- **User ID enrichment**: If users are specified with only `name`, bbctl automatically fetches their IDs from Bitbucket
+- **Performance**: Providing both `name` and `id` in YAML avoids additional API calls
+- **Required fields**: Bitbucket API requires only `name` and `id` fields for users in reviewer groups
+- **Parallel processing**: All operations support parallel processing when working with multiple repositories
+- **Output formats**: All commands support `plain`, `yaml`, and `json` output formats
 
 ### GitOps: diff/apply for required-builds
 Compare two YAML/JSON files (source = current state, target = desired state), get a structured diff (create/update/delete), optionally apply to Bitbucket, save rollback plan, and export results.
