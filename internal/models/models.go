@@ -20,7 +20,8 @@ type ExtendedRepository struct {
 	DefaultBranch  string                                `json:"defaultBranch,omitempty" yaml:"defaultBranch,omitempty"`
 	RestRepository *openapi.RestRepository               `json:"restRepository,omitempty" yaml:"restRepository,omitempty"`
 	Webhooks       *[]openapi.RestWebhook                `json:"webhooks,omitempty" yaml:"webhooks,omitempty"`
-	Manifest       *map[string]interface{}               `json:"manifest,omitempty" yaml:"manifest,omitempty"`
+	Manifest       *map[string]any                       `json:"manifest,omitempty" yaml:"manifest,omitempty"`
+	ConfigFiles    *map[string]any                       `json:"configFiles,omitempty" yaml:"configFiles,omitempty"`
 	RequiredBuilds *[]openapi.RestRequiredBuildCondition `json:"requiredBuilds,omitempty" yaml:"requiredBuilds,omitempty"`
 	ReviewerGroups *[]openapi.RestReviewerGroup          `json:"reviewerGroups,omitempty" yaml:"reviewerGroups,omitempty"`
 	Workzone       *WorkzoneData                         `json:"workzone,omitempty" yaml:"workzone,omitempty"`
@@ -41,6 +42,8 @@ type RepositoryOptions struct {
 	DefaultBranch  bool
 	Manifest       bool
 	ManifestPath   *string
+	ConfigFiles    bool
+	ConfigPaths    []string
 	RequiredBuilds bool
 }
 

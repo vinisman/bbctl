@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -20,6 +21,7 @@ func NewGetCmd() *cobra.Command {
 		output         string
 		showDetails    string
 		manifestFile   string
+		configFiles    []string
 		input          string
 	)
 
@@ -33,6 +35,25 @@ You can specify either:
   --input to load repository identifiers from a YAML file
 Only one of these options should be used at a time.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			normalizeList := func(items []string) []string {
+				out := make([]string, 0, len(items))
+				seen := make(map[string]struct{}, len(items))
+				for _, item := range items {
+					item = strings.TrimSpace(item)
+					if item == "" {
+						continue
+					}
+					if _, ok := seen[item]; ok {
+						continue
+					}
+					seen[item] = struct{}{}
+					out = append(out, item)
+				}
+				return out
+			}
+
+			normalizedConfigFiles := normalizeList(configFiles)
+
 			count := 0
 			if projectKey != "" {
 				count++
@@ -62,6 +83,7 @@ Only one of these options should be used at a time.`,
 			requestedWebhooks := false
 			requestedRequiredBuilds := false
 			requestedManifest := false
+			requestedConfigs := false
 
 			// Validate: if user explicitly set --show-details to empty -> error
 			if cmd.Flags().Changed("show-details") && strings.TrimSpace(showDetails) == "" {
@@ -90,8 +112,22 @@ Only one of these options should be used at a time.`,
 						options.Manifest = true
 						options.ManifestPath = &manifestFile
 						requestedManifest = true
+					case "configs":
+						if len(normalizedConfigFiles) == 0 {
+							return fmt.Errorf("please specify --config-file")
+						}
+						options.ConfigFiles = true
+						options.ConfigPaths = normalizedConfigFiles
+						requestedConfigs = true
 					}
 				}
+
+				if !cmd.Flags().Changed("show-details") && len(normalizedConfigFiles) > 0 {
+					options.ConfigFiles = true
+					options.ConfigPaths = normalizedConfigFiles
+					requestedConfigs = true
+				}
+
 				// Ensure repository details are fetched when defaultBranch is requested
 				if options.DefaultBranch {
 					options.Repository = true
@@ -185,12 +221,36 @@ Only one of these options should be used at a time.`,
 					if !requestedManifest {
 						repos[i].Manifest = nil
 					}
+					if !requestedConfigs {
+						repos[i].ConfigFiles = nil
+					}
 					// DefaultBranch is only populated when requested; no action needed here
 				}
 			}
 
 			// Structured output
 			if output == "yaml" || output == "json" {
+				if requestedConfigs {
+					outRepos := make([]map[string]any, 0, len(repos))
+					for _, repo := range repos {
+						payload, err := json.Marshal(repo)
+						if err != nil {
+							return err
+						}
+						item := make(map[string]any)
+						if err := json.Unmarshal(payload, &item); err != nil {
+							return err
+						}
+						if repo.ConfigFiles != nil {
+							for key, value := range *repo.ConfigFiles {
+								item[key] = value
+							}
+						}
+						delete(item, "configFiles")
+						outRepos = append(outRepos, item)
+					}
+					return utils.PrintStructured("repositories", outRepos, output, columns)
+				}
 				return utils.PrintStructured("repositories", repos, output, columns)
 			}
 			utils.PrintRepos(repos, cols)
@@ -204,11 +264,13 @@ Only one of these options should be used at a time.`,
 	cmd.Flags().StringVar(&columns, "columns", "", "Comma-separated list of fields to display (for plain output)")
 	cmd.Flags().StringVarP(&output, "output", "o", "plain", "Output format: plain|yaml|json")
 	cmd.Flags().StringVar(&manifestFile, "manifest-file", "", "Path to the manifest file to output")
+	cmd.Flags().StringSliceVar(&configFiles, "config-file", []string{}, "Config file path(s) to output as separate sections (repeat flag or use comma-separated values)")
 	cmd.Flags().StringVar(&showDetails, "show-details", "repository", `Comma-separated list of options to include in YAML/JSON output
 	Supported:
 	  repository
 	  defaultBranch
 	  manifest
+	  configs
 	  webhooks
 	  required-builds
 	`)

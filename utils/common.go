@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/vinisman/bbctl/internal/config"
@@ -51,6 +52,33 @@ func ParseColumnsToLower(columns string) []string {
 			out = append(out, strings.ToLower(s))
 		}
 	}
+	return out
+}
+
+var underscoreRe = regexp.MustCompile(`_+`)
+
+func ToUnderscoreKey(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	if value == "" {
+		return "config"
+	}
+
+	var b strings.Builder
+	b.Grow(len(value))
+	for _, r := range value {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+			continue
+		}
+		b.WriteByte('_')
+	}
+
+	out := underscoreRe.ReplaceAllString(b.String(), "_")
+	out = strings.Trim(out, "_")
+	if out == "" {
+		return "config"
+	}
+
 	return out
 }
 

@@ -250,6 +250,21 @@ repositories:
 
 ```
 
+Get only repository config files as separate sections
+```
+$ bbctl repo get -s PROJECT_1/repo1 --show-details configs --config-file gpb-manifest.json --config-file dsl.teamcity.yaml -o yaml
+repositories:
+  - projectKey: PROJECT_1
+    repositorySlug: repo1
+    gpb_manifest_json:
+      version: 1
+      services:
+        - api
+    dsl_teamcity_yaml:
+      build:
+        template: kotlin
+```
+
 Show only defaultBranch (flat field) without full repository payload
 ```
 $ bbctl repo get -s PROJECT_1/repo1 --show-details defaultBranch -o json
@@ -265,9 +280,11 @@ $ bbctl repo get -s PROJECT_1/repo1 --show-details defaultBranch -o json
 ```
 
 Notes about --show-details:
-- If you pass `--show-details`, only the listed sections are included in the output (repository, defaultBranch, webhooks, required-builds, manifest).
+- If you pass `--show-details`, only the listed sections are included in the output (repository, defaultBranch, webhooks, required-builds, manifest, configs).
 - `defaultBranch` is output as a top-level field `defaultBranch`. If `repository` is also requested, it is additionally written into `restRepository.defaultBranch`.
 - An explicitly empty value is invalid: `--show-details ""` will return an error.
+- `--manifest-file` keeps legacy behavior and fills the `manifest` section.
+- `--config-file` can be repeated (or passed comma-separated). Each file is output as a separate top-level section with automatic underscore naming, e.g. `gpb-manifest.json -> gpb_manifest_json`, `dsl.teamcity.yaml -> dsl_teamcity_yaml`.
 
 Create repositories from YAML
 ```
