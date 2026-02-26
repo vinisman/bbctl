@@ -246,7 +246,7 @@ func (c *Client) GetDefaultBranch(projectKey, repoSlug string) (string, error) {
 	return "", nil
 }
 
-func (c *Client) GetManifest(projectKey, repoSlug, filePath string) (map[string]interface{}, error) {
+func (c *Client) GetManifest(projectKey, repoSlug, filePath string) (map[string]any, error) {
 	if projectKey == "" || repoSlug == "" || filePath == "" {
 		return nil, fmt.Errorf("projectKey, repoSlug and filePath must be provided")
 	}
@@ -291,7 +291,7 @@ func (c *Client) GetManifest(projectKey, repoSlug, filePath string) (map[string]
 	}
 
 	// Parse manifest based on file extension
-	var parsed map[string]interface{}
+	var parsed map[string]any
 	switch {
 	case strings.HasSuffix(strings.ToLower(filePath), ".json"):
 		if err := json.Unmarshal(data, &parsed); err != nil {
@@ -478,11 +478,9 @@ func (c *Client) UpdateRepos(repos []models.ExtendedRepository) ([]models.Extend
 	}
 	close(jobs)
 
-	// Wait for all workers to complete
-	go func() {
-		wg.Wait()
-		close(resultsCh)
-	}()
+	// Wait for workers to complete in main thread, then close results channel
+	wg.Wait()
+	close(resultsCh)
 
 	// Collect results
 	updatedRepos := make([]models.ExtendedRepository, len(repos))
@@ -562,11 +560,9 @@ func (c *Client) ForkRepos(repos []models.ExtendedRepository) ([]models.Extended
 	}
 	close(jobs)
 
-	// Wait for all workers to complete
-	go func() {
-		wg.Wait()
-		close(resultsCh)
-	}()
+	// Wait for workers to complete in main thread, then close results channel
+	wg.Wait()
+	close(resultsCh)
 
 	// Collect results
 	forkedRepos := make([]models.ExtendedRepository, len(repos))
@@ -643,6 +639,27 @@ func (c *Client) enrichRepository(r models.ExtendedRepository, projectKey string
 				"error", err)
 		}
 	}
+
+	// Get config files content as separate output sections
+	if options.ConfigFiles && r.RepositorySlug != "" && len(options.ConfigFileMap) > 0 {
+		configs := make(map[string]any, len(options.ConfigFileMap))
+		for key, configPath := range options.ConfigFileMap {
+			cfg, err := c.GetManifest(projectKey, r.RepositorySlug, configPath)
+			if err == nil {
+				configs[key] = cfg
+			} else {
+				c.logger.Debug("Failed fetching config file data",
+					"project", projectKey,
+					"slug", r.RepositorySlug,
+					"filePath", configPath,
+					"error", err)
+			}
+		}
+		if len(configs) > 0 {
+			r.ConfigFiles = &configs
+		}
+	}
+
 	if len(errs) > 0 {
 		return r, fmt.Errorf("enrichment errors: %v", errs)
 	}

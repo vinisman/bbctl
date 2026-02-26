@@ -25,15 +25,20 @@ func (c *Client) GetWebhooks(repos []models.ExtendedRepository) ([]models.Extend
 			errs = append(errs, fmt.Sprintf("failed to call FindWebhooks1 for %s/%s: %v", repos[i].ProjectKey, repos[i].RepositorySlug, err))
 			continue
 		}
-		defer httpResp.Body.Close()
 
 		if httpResp.StatusCode != http.StatusOK {
-			bodyBytes, _ := io.ReadAll(httpResp.Body)
-			errs = append(errs, fmt.Sprintf("unexpected status %d for %s/%s: %s", httpResp.StatusCode, repos[i].ProjectKey, repos[i].RepositorySlug, string(bodyBytes)))
+			bodyBytes, readErr := io.ReadAll(httpResp.Body)
+			httpResp.Body.Close()
+			if readErr != nil {
+				errs = append(errs, fmt.Sprintf("unexpected status %d for %s/%s: failed to read body: %v", httpResp.StatusCode, repos[i].ProjectKey, repos[i].RepositorySlug, readErr))
+			} else {
+				errs = append(errs, fmt.Sprintf("unexpected status %d for %s/%s: %s", httpResp.StatusCode, repos[i].ProjectKey, repos[i].RepositorySlug, string(bodyBytes)))
+			}
 			continue
 		}
 
 		bodyBytes, err := io.ReadAll(httpResp.Body)
+		httpResp.Body.Close()
 		if err != nil {
 			errs = append(errs, fmt.Sprintf("failed to read response body for %s/%s: %v", repos[i].ProjectKey, repos[i].RepositorySlug, err))
 			continue
@@ -67,24 +72,26 @@ func (c *Client) CreateWebhooks(repos []models.ExtendedRepository) ([]models.Ext
 		webhook   openapi.RestWebhook
 	}
 
+	type result struct {
+		repoIndex int
+		webhook   openapi.RestWebhook
+	}
+
 	// count the total number of webhook tasks
 	var total int
 	for _, r := range repos {
 		total += len(*r.Webhooks)
 	}
 
+	if total == 0 {
+		return []models.ExtendedRepository{}, nil
+	}
+
 	jobs := make(chan job, total)
+	resultsCh := make(chan result, total)
 	errCh := make(chan error, total)
 
-	var mu sync.Mutex
 	var wg sync.WaitGroup
-
-	newRepos := make([]models.ExtendedRepository, len(repos))
-	for i := range repos {
-		newRepos[i].ProjectKey = repos[i].ProjectKey
-		newRepos[i].RepositorySlug = repos[i].RepositorySlug
-		newRepos[i].Webhooks = &[]openapi.RestWebhook{}
-	}
 
 	worker := func() {
 		defer wg.Done()
@@ -107,9 +114,7 @@ func (c *Client) CreateWebhooks(repos []models.ExtendedRepository) ([]models.Ext
 				continue
 			}
 
-			mu.Lock()
-			*newRepos[j.repoIndex].Webhooks = append(*newRepos[j.repoIndex].Webhooks, *created)
-			mu.Unlock()
+			resultsCh <- result{repoIndex: j.repoIndex, webhook: *created}
 
 			c.logger.Info("Created webhook",
 				"project", j.repo.ProjectKey,
@@ -133,8 +138,22 @@ func (c *Client) CreateWebhooks(repos []models.ExtendedRepository) ([]models.Ext
 	}
 	close(jobs)
 
+	// wait for workers and close channels
 	wg.Wait()
+	close(resultsCh)
 	close(errCh)
+
+	// collect results into newRepos
+	newRepos := make([]models.ExtendedRepository, len(repos))
+	for i := range repos {
+		newRepos[i].ProjectKey = repos[i].ProjectKey
+		newRepos[i].RepositorySlug = repos[i].RepositorySlug
+		newRepos[i].Webhooks = &[]openapi.RestWebhook{}
+	}
+
+	for res := range resultsCh {
+		*newRepos[res.repoIndex].Webhooks = append(*newRepos[res.repoIndex].Webhooks, res.webhook)
+	}
 
 	// collect all errors
 	var firstErr error
@@ -158,16 +177,14 @@ func (c *Client) CreateWebhooks(repos []models.ExtendedRepository) ([]models.Ext
 func (c *Client) UpdateWebhooks(repos []models.ExtendedRepository) ([]models.ExtendedRepository, error) {
 	maxWorkers := config.GlobalMaxWorkers
 
-	newRepos := make([]models.ExtendedRepository, len(repos))
-	for i := range repos {
-		newRepos[i].ProjectKey = repos[i].ProjectKey
-		newRepos[i].RepositorySlug = repos[i].RepositorySlug
-		newRepos[i].Webhooks = &[]openapi.RestWebhook{}
-	}
-
 	type job struct {
 		repoIndex int
 		repo      models.ExtendedRepository
+		webhook   openapi.RestWebhook
+	}
+
+	type result struct {
+		repoIndex int
 		webhook   openapi.RestWebhook
 	}
 
@@ -177,10 +194,14 @@ func (c *Client) UpdateWebhooks(repos []models.ExtendedRepository) ([]models.Ext
 		total += len(*r.Webhooks)
 	}
 
+	if total == 0 {
+		return []models.ExtendedRepository{}, nil
+	}
+
 	jobs := make(chan job, total)
+	resultsCh := make(chan result, total)
 	errCh := make(chan error, total)
 
-	var mu sync.Mutex
 	var wg sync.WaitGroup
 
 	worker := func() {
@@ -210,9 +231,7 @@ func (c *Client) UpdateWebhooks(repos []models.ExtendedRepository) ([]models.Ext
 				continue
 			}
 
-			mu.Lock()
-			*newRepos[j.repoIndex].Webhooks = append(*newRepos[j.repoIndex].Webhooks, *updated)
-			mu.Unlock()
+			resultsCh <- result{repoIndex: j.repoIndex, webhook: *updated}
 
 			c.logger.Info("Updated webhook",
 				"project", j.repo.ProjectKey,
@@ -237,8 +256,22 @@ func (c *Client) UpdateWebhooks(repos []models.ExtendedRepository) ([]models.Ext
 	}
 	close(jobs)
 
+	// wait for workers and close channels
 	wg.Wait()
+	close(resultsCh)
 	close(errCh)
+
+	// collect results into newRepos
+	newRepos := make([]models.ExtendedRepository, len(repos))
+	for i := range repos {
+		newRepos[i].ProjectKey = repos[i].ProjectKey
+		newRepos[i].RepositorySlug = repos[i].RepositorySlug
+		newRepos[i].Webhooks = &[]openapi.RestWebhook{}
+	}
+
+	for res := range resultsCh {
+		*newRepos[res.repoIndex].Webhooks = append(*newRepos[res.repoIndex].Webhooks, res.webhook)
+	}
 
 	// collect first error
 	var firstErr error
