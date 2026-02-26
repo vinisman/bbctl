@@ -478,11 +478,9 @@ func (c *Client) UpdateRepos(repos []models.ExtendedRepository) ([]models.Extend
 	}
 	close(jobs)
 
-	// Wait for all workers to complete
-	go func() {
-		wg.Wait()
-		close(resultsCh)
-	}()
+	// Wait for workers to complete in main thread, then close results channel
+	wg.Wait()
+	close(resultsCh)
 
 	// Collect results
 	updatedRepos := make([]models.ExtendedRepository, len(repos))
@@ -562,11 +560,9 @@ func (c *Client) ForkRepos(repos []models.ExtendedRepository) ([]models.Extended
 	}
 	close(jobs)
 
-	// Wait for all workers to complete
-	go func() {
-		wg.Wait()
-		close(resultsCh)
-	}()
+	// Wait for workers to complete in main thread, then close results channel
+	wg.Wait()
+	close(resultsCh)
 
 	// Collect results
 	forkedRepos := make([]models.ExtendedRepository, len(repos))
@@ -645,12 +641,12 @@ func (c *Client) enrichRepository(r models.ExtendedRepository, projectKey string
 	}
 
 	// Get config files content as separate output sections
-	if options.ConfigFiles && r.RepositorySlug != "" && len(options.ConfigPaths) > 0 {
-		configs := make(map[string]any, len(options.ConfigPaths))
-		for _, configPath := range options.ConfigPaths {
+	if options.ConfigFiles && r.RepositorySlug != "" && len(options.ConfigFileMap) > 0 {
+		configs := make(map[string]any, len(options.ConfigFileMap))
+		for key, configPath := range options.ConfigFileMap {
 			cfg, err := c.GetManifest(projectKey, r.RepositorySlug, configPath)
 			if err == nil {
-				configs[utils.ToUnderscoreKey(configPath)] = cfg
+				configs[key] = cfg
 			} else {
 				c.logger.Debug("Failed fetching config file data",
 					"project", projectKey,

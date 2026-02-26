@@ -35,24 +35,31 @@ You can specify either:
   --input to load repository identifiers from a YAML file
 Only one of these options should be used at a time.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			normalizeList := func(items []string) []string {
-				out := make([]string, 0, len(items))
-				seen := make(map[string]struct{}, len(items))
+			parseConfigFiles := func(items []string) (map[string]string, error) {
+				result := make(map[string]string)
 				for _, item := range items {
 					item = strings.TrimSpace(item)
 					if item == "" {
 						continue
 					}
-					if _, ok := seen[item]; ok {
-						continue
+					parts := strings.SplitN(item, "=", 2)
+					if len(parts) != 2 {
+						return nil, fmt.Errorf("invalid config file format: %q (expected key=filepath)", item)
 					}
-					seen[item] = struct{}{}
-					out = append(out, item)
+					key := strings.TrimSpace(parts[0])
+					filepath := strings.TrimSpace(parts[1])
+					if key == "" || filepath == "" {
+						return nil, fmt.Errorf("key and filepath must not be empty: %q", item)
+					}
+					result[key] = filepath
 				}
-				return out
+				return result, nil
 			}
 
-			normalizedConfigFiles := normalizeList(configFiles)
+			configFileMap, err := parseConfigFiles(configFiles)
+			if err != nil {
+				return err
+			}
 
 			count := 0
 			if projectKey != "" {
@@ -113,18 +120,18 @@ Only one of these options should be used at a time.`,
 						options.ManifestPath = &manifestFile
 						requestedManifest = true
 					case "configs":
-						if len(normalizedConfigFiles) == 0 {
+						if len(configFileMap) == 0 {
 							return fmt.Errorf("please specify --config-file")
 						}
 						options.ConfigFiles = true
-						options.ConfigPaths = normalizedConfigFiles
+						options.ConfigFileMap = configFileMap
 						requestedConfigs = true
 					}
 				}
 
-				if !cmd.Flags().Changed("show-details") && len(normalizedConfigFiles) > 0 {
+				if !cmd.Flags().Changed("show-details") && len(configFileMap) > 0 {
 					options.ConfigFiles = true
-					options.ConfigPaths = normalizedConfigFiles
+					options.ConfigFileMap = configFileMap
 					requestedConfigs = true
 				}
 
@@ -264,7 +271,7 @@ Only one of these options should be used at a time.`,
 	cmd.Flags().StringVar(&columns, "columns", "", "Comma-separated list of fields to display (for plain output)")
 	cmd.Flags().StringVarP(&output, "output", "o", "plain", "Output format: plain|yaml|json")
 	cmd.Flags().StringVar(&manifestFile, "manifest-file", "", "Path to the manifest file to output")
-	cmd.Flags().StringSliceVar(&configFiles, "config-file", []string{}, "Config file path(s) to output as separate sections (repeat flag or use comma-separated values)")
+	cmd.Flags().StringSliceVar(&configFiles, "config-file", []string{}, "Config file(s) to output as separate sections in format key=filepath (repeat flag or use comma-separated values)")
 	cmd.Flags().StringVar(&showDetails, "show-details", "repository", `Comma-separated list of options to include in YAML/JSON output
 	Supported:
 	  repository

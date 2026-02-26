@@ -43,7 +43,7 @@ type RepositoryOptions struct {
 	Manifest       bool
 	ManifestPath   *string
 	ConfigFiles    bool
-	ConfigPaths    []string
+	ConfigFileMap  map[string]string
 	RequiredBuilds bool
 }
 

@@ -49,83 +49,76 @@ func (c *Client) GetReviewerGroups(repos []models.ExtendedRepository) ([]models.
 func (c *Client) CreateReviewerGroups(repos []models.ExtendedRepository) ([]models.ExtendedRepository, error) {
 	maxWorkers := config.GlobalMaxWorkers
 
-	// Enrich user data with IDs (required by API)
-	// Only Name and Id fields are required by Bitbucket API for reviewer groups
-	for i := range repos {
-		if repos[i].ReviewerGroups == nil {
-			continue
-		}
-		for j := range *repos[i].ReviewerGroups {
-			rg := &(*repos[i].ReviewerGroups)[j]
-			if len(rg.Users) == 0 {
-				continue
-			}
-			// Fetch user IDs for users that don't have ID set
-			var enrichedUsers []openapi.ApplicationUser
-			for _, user := range rg.Users {
-				// If user already has ID, use as-is
-				if user.Id != nil {
-					enrichedUsers = append(enrichedUsers, user)
-					continue
-				}
-
-				if user.Name == nil || *user.Name == "" {
-					continue
-				}
-
-				// Get user ID from Bitbucket
-				userResp, httpResp, err := c.api.PermissionManagementAPI.GetUsers1(c.authCtx).Filter(*user.Name).Execute()
-				if err != nil {
-					c.logger.Warn("Failed to get user ID",
-						"username", *user.Name,
-						"error", err)
-					if httpResp != nil {
-						c.logger.Debug("HTTP response", "status", httpResp.StatusCode)
-					}
-					continue
-				}
-				if userResp != nil && len(userResp.Values) > 0 {
-					// Only set Name and Id - the minimum required fields
-					appUser := openapi.ApplicationUser{
-						Name: user.Name,
-						Id:   userResp.Values[0].Id,
-					}
-					enrichedUsers = append(enrichedUsers, appUser)
-					c.logger.Debug("Enriched user with ID",
-						"username", *user.Name,
-						"id", userResp.Values[0].Id)
-				}
-			}
-			rg.Users = enrichedUsers
-		}
-	}
-
 	type job struct {
 		repoIndex     int
 		repo          models.ExtendedRepository
 		reviewerGroup openapi.RestReviewerGroup
 	}
 
+	type result struct {
+		repoIndex     int
+		reviewerGroup openapi.RestReviewerGroup
+	}
+
+	// Enrich user data with IDs (required by API)
+	// Create copies to avoid modifying input data
+	reposCopy := make([]models.ExtendedRepository, len(repos))
+	for i := range repos {
+		reposCopy[i] = repos[i]
+		if repos[i].ReviewerGroups != nil {
+			groupsCopy := make([]openapi.RestReviewerGroup, len(*repos[i].ReviewerGroups))
+			for j, rg := range *repos[i].ReviewerGroups {
+				groupsCopy[j] = rg
+				if len(rg.Users) == 0 {
+					continue
+				}
+				// Fetch user IDs for users that don't have ID set
+				var enrichedUsers []openapi.ApplicationUser
+				for _, user := range rg.Users {
+					if user.Id != nil {
+						enrichedUsers = append(enrichedUsers, user)
+						continue
+					}
+					if user.Name == nil || *user.Name == "" {
+						continue
+					}
+					userResp, httpResp, err := c.api.PermissionManagementAPI.GetUsers1(c.authCtx).Filter(*user.Name).Execute()
+					if err != nil {
+						c.logger.Warn("Failed to get user ID", "username", *user.Name, "error", err)
+						if httpResp != nil {
+							c.logger.Debug("HTTP response", "status", httpResp.StatusCode)
+						}
+						continue
+					}
+					if userResp != nil && len(userResp.Values) > 0 {
+						appUser := openapi.ApplicationUser{Name: user.Name, Id: userResp.Values[0].Id}
+						enrichedUsers = append(enrichedUsers, appUser)
+						c.logger.Debug("Enriched user with ID", "username", *user.Name, "id", userResp.Values[0].Id)
+					}
+				}
+				groupsCopy[j].Users = enrichedUsers
+			}
+			reposCopy[i].ReviewerGroups = &groupsCopy
+		}
+	}
+
 	// count the total number of reviewer group tasks
 	var total int
-	for _, r := range repos {
+	for _, r := range reposCopy {
 		if r.ReviewerGroups != nil {
 			total += len(*r.ReviewerGroups)
 		}
 	}
 
+	if total == 0 {
+		return []models.ExtendedRepository{}, nil
+	}
+
 	jobs := make(chan job, total)
+	resultsCh := make(chan result, total)
 	errCh := make(chan error, total)
 
-	var mu sync.Mutex
 	var wg sync.WaitGroup
-
-	newRepos := make([]models.ExtendedRepository, len(repos))
-	for i := range repos {
-		newRepos[i].ProjectKey = repos[i].ProjectKey
-		newRepos[i].RepositorySlug = repos[i].RepositorySlug
-		newRepos[i].ReviewerGroups = &[]openapi.RestReviewerGroup{}
-	}
 
 	worker := func() {
 		defer wg.Done()
@@ -156,9 +149,7 @@ func (c *Client) CreateReviewerGroups(repos []models.ExtendedRepository) ([]mode
 				continue
 			}
 
-			mu.Lock()
-			*newRepos[j.repoIndex].ReviewerGroups = append(*newRepos[j.repoIndex].ReviewerGroups, *created)
-			mu.Unlock()
+			resultsCh <- result{repoIndex: j.repoIndex, reviewerGroup: *created}
 
 			c.logger.Info("Created reviewer group",
 				"project", j.repo.ProjectKey,
@@ -175,7 +166,7 @@ func (c *Client) CreateReviewerGroups(repos []models.ExtendedRepository) ([]mode
 	}
 
 	// Send jobs
-	for i, repo := range repos {
+	for i, repo := range reposCopy {
 		if repo.ReviewerGroups == nil {
 			continue
 		}
@@ -191,7 +182,20 @@ func (c *Client) CreateReviewerGroups(repos []models.ExtendedRepository) ([]mode
 
 	// Wait for all workers to complete
 	wg.Wait()
+	close(resultsCh)
 	close(errCh)
+
+	// Collect results into newRepos
+	newRepos := make([]models.ExtendedRepository, len(repos))
+	for i := range repos {
+		newRepos[i].ProjectKey = repos[i].ProjectKey
+		newRepos[i].RepositorySlug = repos[i].RepositorySlug
+		newRepos[i].ReviewerGroups = &[]openapi.RestReviewerGroup{}
+	}
+
+	for res := range resultsCh {
+		*newRepos[res.repoIndex].ReviewerGroups = append(*newRepos[res.repoIndex].ReviewerGroups, res.reviewerGroup)
+	}
 
 	// Collect errors
 	var errs []error
@@ -211,83 +215,75 @@ func (c *Client) CreateReviewerGroups(repos []models.ExtendedRepository) ([]mode
 func (c *Client) UpdateReviewerGroups(repos []models.ExtendedRepository) ([]models.ExtendedRepository, error) {
 	maxWorkers := config.GlobalMaxWorkers
 
-	// Enrich user data with IDs (required by API)
-	// Only Name and Id fields are required by Bitbucket API for reviewer groups
-	for i := range repos {
-		if repos[i].ReviewerGroups == nil {
-			continue
-		}
-		for j := range *repos[i].ReviewerGroups {
-			rg := &(*repos[i].ReviewerGroups)[j]
-			if len(rg.Users) == 0 {
-				continue
-			}
-			// Fetch user IDs for users that don't have ID set
-			var enrichedUsers []openapi.ApplicationUser
-			for _, user := range rg.Users {
-				// If user already has ID, use as-is
-				if user.Id != nil {
-					enrichedUsers = append(enrichedUsers, user)
-					continue
-				}
-
-				if user.Name == nil || *user.Name == "" {
-					continue
-				}
-
-				// Get user ID from Bitbucket
-				userResp, httpResp, err := c.api.PermissionManagementAPI.GetUsers1(c.authCtx).Filter(*user.Name).Execute()
-				if err != nil {
-					c.logger.Warn("Failed to get user ID",
-						"username", *user.Name,
-						"error", err)
-					if httpResp != nil {
-						c.logger.Debug("HTTP response", "status", httpResp.StatusCode)
-					}
-					continue
-				}
-				if userResp != nil && len(userResp.Values) > 0 {
-					// Only set Name and Id - the minimum required fields
-					appUser := openapi.ApplicationUser{
-						Name: user.Name,
-						Id:   userResp.Values[0].Id,
-					}
-					enrichedUsers = append(enrichedUsers, appUser)
-					c.logger.Debug("Enriched user with ID",
-						"username", *user.Name,
-						"id", userResp.Values[0].Id)
-				}
-			}
-			rg.Users = enrichedUsers
-		}
-	}
-
 	type job struct {
 		repoIndex     int
 		repo          models.ExtendedRepository
 		reviewerGroup openapi.RestReviewerGroup
 	}
 
+	type result struct {
+		repoIndex     int
+		reviewerGroup openapi.RestReviewerGroup
+	}
+
+	// Enrich user data with IDs (required by API)
+	// Create copies to avoid modifying input data
+	reposCopy := make([]models.ExtendedRepository, len(repos))
+	for i := range repos {
+		reposCopy[i] = repos[i]
+		if repos[i].ReviewerGroups != nil {
+			groupsCopy := make([]openapi.RestReviewerGroup, len(*repos[i].ReviewerGroups))
+			for j, rg := range *repos[i].ReviewerGroups {
+				groupsCopy[j] = rg
+				if len(rg.Users) == 0 {
+					continue
+				}
+				var enrichedUsers []openapi.ApplicationUser
+				for _, user := range rg.Users {
+					if user.Id != nil {
+						enrichedUsers = append(enrichedUsers, user)
+						continue
+					}
+					if user.Name == nil || *user.Name == "" {
+						continue
+					}
+					userResp, httpResp, err := c.api.PermissionManagementAPI.GetUsers1(c.authCtx).Filter(*user.Name).Execute()
+					if err != nil {
+						c.logger.Warn("Failed to get user ID", "username", *user.Name, "error", err)
+						if httpResp != nil {
+							c.logger.Debug("HTTP response", "status", httpResp.StatusCode)
+						}
+						continue
+					}
+					if userResp != nil && len(userResp.Values) > 0 {
+						appUser := openapi.ApplicationUser{Name: user.Name, Id: userResp.Values[0].Id}
+						enrichedUsers = append(enrichedUsers, appUser)
+						c.logger.Debug("Enriched user with ID", "username", *user.Name, "id", userResp.Values[0].Id)
+					}
+				}
+				groupsCopy[j].Users = enrichedUsers
+			}
+			reposCopy[i].ReviewerGroups = &groupsCopy
+		}
+	}
+
 	// count the total number of reviewer group tasks
 	var total int
-	for _, r := range repos {
+	for _, r := range reposCopy {
 		if r.ReviewerGroups != nil {
 			total += len(*r.ReviewerGroups)
 		}
 	}
 
+	if total == 0 {
+		return []models.ExtendedRepository{}, nil
+	}
+
 	jobs := make(chan job, total)
+	resultsCh := make(chan result, total)
 	errCh := make(chan error, total)
 
-	var mu sync.Mutex
 	var wg sync.WaitGroup
-
-	newRepos := make([]models.ExtendedRepository, len(repos))
-	for i := range repos {
-		newRepos[i].ProjectKey = repos[i].ProjectKey
-		newRepos[i].RepositorySlug = repos[i].RepositorySlug
-		newRepos[i].ReviewerGroups = &[]openapi.RestReviewerGroup{}
-	}
 
 	worker := func() {
 		defer wg.Done()
@@ -327,9 +323,7 @@ func (c *Client) UpdateReviewerGroups(repos []models.ExtendedRepository) ([]mode
 				continue
 			}
 
-			mu.Lock()
-			*newRepos[j.repoIndex].ReviewerGroups = append(*newRepos[j.repoIndex].ReviewerGroups, *updated)
-			mu.Unlock()
+			resultsCh <- result{repoIndex: j.repoIndex, reviewerGroup: *updated}
 
 			updatedName := "unknown"
 			if updated.Name != nil {
@@ -351,7 +345,7 @@ func (c *Client) UpdateReviewerGroups(repos []models.ExtendedRepository) ([]mode
 	}
 
 	// Send jobs
-	for i, repo := range repos {
+	for i, repo := range reposCopy {
 		if repo.ReviewerGroups == nil {
 			continue
 		}
@@ -367,7 +361,20 @@ func (c *Client) UpdateReviewerGroups(repos []models.ExtendedRepository) ([]mode
 
 	// Wait for all workers to complete
 	wg.Wait()
+	close(resultsCh)
 	close(errCh)
+
+	// Collect results into newRepos
+	newRepos := make([]models.ExtendedRepository, len(repos))
+	for i := range repos {
+		newRepos[i].ProjectKey = repos[i].ProjectKey
+		newRepos[i].RepositorySlug = repos[i].RepositorySlug
+		newRepos[i].ReviewerGroups = &[]openapi.RestReviewerGroup{}
+	}
+
+	for res := range resultsCh {
+		*newRepos[res.repoIndex].ReviewerGroups = append(*newRepos[res.repoIndex].ReviewerGroups, res.reviewerGroup)
+	}
 
 	// Collect errors
 	var errs []error
@@ -393,6 +400,11 @@ func (c *Client) DeleteReviewerGroups(repos []models.ExtendedRepository) ([]mode
 		reviewerGroup openapi.RestReviewerGroup
 	}
 
+	type result struct {
+		repoIndex     int
+		reviewerGroup openapi.RestReviewerGroup
+	}
+
 	// count the total number of reviewer group tasks
 	var total int
 	for _, r := range repos {
@@ -401,18 +413,15 @@ func (c *Client) DeleteReviewerGroups(repos []models.ExtendedRepository) ([]mode
 		}
 	}
 
+	if total == 0 {
+		return []models.ExtendedRepository{}, nil
+	}
+
 	jobs := make(chan job, total)
+	resultsCh := make(chan result, total)
 	errCh := make(chan error, total)
 
-	var mu sync.Mutex
 	var wg sync.WaitGroup
-
-	newRepos := make([]models.ExtendedRepository, len(repos))
-	for i := range repos {
-		newRepos[i].ProjectKey = repos[i].ProjectKey
-		newRepos[i].RepositorySlug = repos[i].RepositorySlug
-		newRepos[i].ReviewerGroups = &[]openapi.RestReviewerGroup{}
-	}
 
 	worker := func() {
 		defer wg.Done()
@@ -451,9 +460,7 @@ func (c *Client) DeleteReviewerGroups(repos []models.ExtendedRepository) ([]mode
 				continue
 			}
 
-			mu.Lock()
-			*newRepos[j.repoIndex].ReviewerGroups = append(*newRepos[j.repoIndex].ReviewerGroups, j.reviewerGroup)
-			mu.Unlock()
+			resultsCh <- result{repoIndex: j.repoIndex, reviewerGroup: j.reviewerGroup}
 
 			c.logger.Info("Deleted reviewer group",
 				"project", j.repo.ProjectKey,
@@ -486,7 +493,20 @@ func (c *Client) DeleteReviewerGroups(repos []models.ExtendedRepository) ([]mode
 
 	// Wait for all workers to complete
 	wg.Wait()
+	close(resultsCh)
 	close(errCh)
+
+	// Collect results into newRepos
+	newRepos := make([]models.ExtendedRepository, len(repos))
+	for i := range repos {
+		newRepos[i].ProjectKey = repos[i].ProjectKey
+		newRepos[i].RepositorySlug = repos[i].RepositorySlug
+		newRepos[i].ReviewerGroups = &[]openapi.RestReviewerGroup{}
+	}
+
+	for res := range resultsCh {
+		*newRepos[res.repoIndex].ReviewerGroups = append(*newRepos[res.repoIndex].ReviewerGroups, res.reviewerGroup)
+	}
 
 	// Collect errors
 	var errs []error

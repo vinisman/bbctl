@@ -252,15 +252,15 @@ repositories:
 
 Get only repository config files as separate sections
 ```
-$ bbctl repo get -s PROJECT_1/repo1 --show-details configs --config-file gpb-manifest.json --config-file dsl.teamcity.yaml -o yaml
+$ bbctl repo get -s PROJECT_1/repo1 --show-details configs --config-file manifest=manifest.json --config-file config=config.yaml -o yaml
 repositories:
   - projectKey: PROJECT_1
     repositorySlug: repo1
-    gpb_manifest_json:
+    manifest:
       version: 1
       services:
         - api
-    dsl_teamcity_yaml:
+    config:
       build:
         template: kotlin
 ```
@@ -284,7 +284,7 @@ Notes about --show-details:
 - `defaultBranch` is output as a top-level field `defaultBranch`. If `repository` is also requested, it is additionally written into `restRepository.defaultBranch`.
 - An explicitly empty value is invalid: `--show-details ""` will return an error.
 - `--manifest-file` keeps legacy behavior and fills the `manifest` section.
-- `--config-file` can be repeated (or passed comma-separated). Each file is output as a separate top-level section with automatic underscore naming, e.g. `gpb-manifest.json -> gpb_manifest_json`, `dsl.teamcity.yaml -> dsl_teamcity_yaml`.
+- `--config-file` can be repeated (or passed comma-separated). Format: `key=filepath`. Each file is output as a separate top-level section using the specified key, e.g. `--config-file manifest=manifest.json`.
 
 Create repositories from YAML
 ```
