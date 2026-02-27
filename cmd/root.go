@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 
 	"github.com/joho/godotenv"
 	"github.com/spf13/cobra"
@@ -116,7 +117,9 @@ func versionCmd() *cobra.Command {
 		Short: "Print the version number of bbctl",
 		Run: func(cmd *cobra.Command, args []string) {
 			if Version != "" && Commit != "" {
-				fmt.Printf("bbctl version: %s, commit: %s\n", Version, Commit)
+				// Убираем префикс 'v' если есть (для консистивности с тегами)
+				version := strings.TrimPrefix(Version, "v")
+				fmt.Printf("bbctl version: %s, commit: %s\n", version, Commit)
 			} else {
 				fmt.Println("bbctl version: unknown")
 			}
