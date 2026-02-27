@@ -12,6 +12,7 @@ require (
 )
 
 require (
+	github.com/google/jsonschema-go v0.4.2 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.6 // indirect
 	gopkg.in/validator.v2 v2.0.1 // indirect
