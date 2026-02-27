@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -98,7 +99,51 @@ func runValidate(cmd *cobra.Command, args []string) error {
 	}
 
 	// Разрешение ссылок в схеме
-	resolved, err := schemaObj.Resolve(nil)
+	// Создаем загрузчик для локальных файлов
+	loader := func(uri *url.URL) (*jsonschema.Schema, error) {
+		// Get the file path from URI
+		path := uri.Path
+		if uri.Scheme == "file" {
+			// Handle file:// URIs (may have host on Windows)
+			path = uri.Path
+		}
+		
+		// Resolve relative paths against the base schema directory
+		if !filepath.IsAbs(path) && flagSchema != "-" && flagSchema != "" {
+			baseDir := filepath.Dir(flagSchema)
+			path = filepath.Join(baseDir, path)
+		}
+		
+		// Clean the path to prevent directory traversal
+		path = filepath.Clean(path)
+		
+		// Read and parse the schema file
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("loading %s: %w", path, err)
+		}
+		
+		var schema jsonschema.Schema
+		if err := json.Unmarshal(data, &schema); err != nil {
+			return nil, fmt.Errorf("parsing %s: %w", path, err)
+		}
+		
+		return &schema, nil
+	}
+
+	// Determine base URI for the schema
+	var baseURI string
+	if flagSchema != "-" && flagSchema != "" {
+		absPath, err := filepath.Abs(flagSchema)
+		if err == nil {
+			baseURI = "file://" + absPath
+		}
+	}
+
+	resolved, err := schemaObj.Resolve(&jsonschema.ResolveOptions{
+		BaseURI: baseURI,
+		Loader:  loader,
+	})
 	if err != nil {
 		return fmt.Errorf("schema resolution failed: %w", err)
 	}
