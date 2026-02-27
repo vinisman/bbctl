@@ -6,13 +6,14 @@ It provides streamlined support for creating, deleting, updating, and retrieving
 ## ✨ Features
 
 - Manage multiple repositories, projects, and users
-- Retrieve additional repository information using a manifest file from the root of the repository  
+- Retrieve additional repository information using a manifest file from the root of the repository
 - Parallel processing for high-performance bulk operations
 - YAML/JSON output for full GitOps compatibility
 - Easy configuration via `.env` file
 - Support reading YAML/JSON from stdin (`-`) for all relevant commands
 - Unified project file format across all project operations
 - User management with secure password handling
+- **File validation** against JSON Schema (YAML/JSON support)
 
 ## Configuration
 Add a `.env` properties file as shown below, or provide configuration via command-line flags.  
@@ -757,6 +758,86 @@ repositories:
 - **Feedback**: Commands provide detailed feedback about successful operations and error handling
 - **Plugin compatibility**: Section names match the Workzone plugin tab names for easy identification
 - **Performance**: Fetching all sections by default may be slower than selecting specific sections, especially for repositories with many branches or complex configurations
+
+## File Validation
+
+Validate any JSON or YAML file against a JSON Schema.
+
+### Basic validation
+
+Validate a YAML file against a schema:
+```bash
+$ bbctl validate --schema schema.json --data data.yaml
+✓ Validation passed
+```
+
+Validate a JSON file:
+```bash
+$ bbctl validate --schema schema.json --data data.json
+✓ Validation passed
+```
+
+### Verbose error output
+
+```bash
+$ bbctl validate --schema schema.json --data invalid.yaml --verbose
+Error: validation failed:
+Validation errors:
+validating root: validating /properties/email: pattern: "not-an-email" does not match pattern "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+```
+
+### JSON output
+
+```bash
+$ bbctl validate --schema schema.json --data data.yaml -o json
+{
+  "valid": true,
+  "message": "Validation passed"
+}
+```
+
+### Read from stdin
+
+Read data from stdin:
+```bash
+$ cat data.yaml | bbctl validate --schema schema.json --data -
+```
+
+Read schema from stdin:
+```bash
+$ cat schema.json | bbctl validate --schema - --data data.yaml
+```
+
+### Example schema
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["name", "email"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "email": {
+      "type": "string",
+      "format": "email"
+    },
+    "age": {
+      "type": "integer",
+      "minimum": 0
+    }
+  }
+}
+```
+
+Example data file (YAML):
+```yaml
+name: John Doe
+email: john@example.com
+age: 30
+```
 
 
 ## 💰 Support the project

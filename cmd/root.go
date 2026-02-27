@@ -11,6 +11,7 @@ import (
 	"github.com/vinisman/bbctl/cmd/project"
 	"github.com/vinisman/bbctl/cmd/repo"
 	"github.com/vinisman/bbctl/cmd/user"
+	"github.com/vinisman/bbctl/cmd/validate"
 	"github.com/vinisman/bbctl/internal/config"
 )
 
@@ -102,6 +103,7 @@ func NewRootCmd() *cobra.Command {
 		project.NewProjectCmd(),
 		user.UserCmd(),
 		group.GroupCmd(),
+		validate.NewValidateCmd(),
 		versionCmd(),
 	)
 
