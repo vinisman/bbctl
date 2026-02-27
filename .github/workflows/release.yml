@@ -34,8 +34,10 @@ jobs:
           BIN_NAME=bbctl
           [[ "${{ matrix.goos }}" == "windows" ]] && BIN_NAME=${BIN_NAME}.exe
           echo "BIN_NAME=$BIN_NAME" >> "$GITHUB_ENV"
+          # Remove 'v' prefix from version tag
+          VERSION=${GITHUB_REF_NAME#v}
           CGO_ENABLED=0 GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build \
-            -ldflags="-s -w -X 'github.com/vinisman/bbctl/cmd.Version=${GITHUB_REF_NAME}' -X 'github.com/vinisman/bbctl/cmd.Commit=${GITHUB_SHA}'" \
+            -ldflags="-s -w -X 'github.com/vinisman/bbctl/cmd.Version=${VERSION}' -X 'github.com/vinisman/bbctl/cmd.Commit=${GITHUB_SHA}'" \
             -o $BIN_NAME
 
       - name: Package artifact
