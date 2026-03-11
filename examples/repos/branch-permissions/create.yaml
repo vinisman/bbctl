@@ -1,0 +1,44 @@
+# Example of creating branch permissions for repositories
+# Uses RestRefRestrictionCreate format where users is a list of strings (usernames)
+
+repositories:
+  - projectKey: DEV
+    repositorySlug: my-repo
+    branchPermissions:
+      # Prevent push to main branch except for admins
+      - type: push
+        matcher:
+          id: "refs/heads/main"
+          displayId: "main"
+          type: "BRANCH"
+        users:
+          - admin
+        groups:
+          - repository-admins
+
+  - projectKey: DEV
+    repositorySlug: another-repo
+    branchPermissions:
+      # Require pull request for merging to develop
+      - type: pull-request-only
+        matcher:
+          id: "refs/heads/develop"
+          displayId: "develop"
+          type: "BRANCH"
+        users:
+          - tech-lead
+          - senior-dev
+        groups:
+          - developers
+
+  - projectKey: OPS
+    repositorySlug: infrastructure
+    branchPermissions:
+      # Prevent deletion of release branches
+      - type: delete-branch
+        matcher:
+          id: "refs/heads/release/*"
+          displayId: "release/*"
+          type: "PATTERN"
+        groups:
+          - release-managers

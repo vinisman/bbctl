@@ -44,7 +44,48 @@ GO_VERSION=$(go version | awk '{print $3}' | sed 's/go//')
 echo -e "${GREEN}Go version: $GO_VERSION${NC}"
 
 # Mode: default builds for host platform into ./bbctl; "release" builds multi-platform archives
+# Usage:
+#   ./build.sh                    - build for host platform
+#   ./build.sh release            - build for all platforms (linux/amd64, windows/amd64)
+#   ./build.sh linux              - build for linux/amd64
+#   ./build.sh linux amd64        - build for linux/amd64
+#   ./build.sh linux arm64        - build for linux/arm64
+#   ./build.sh windows amd64      - build for windows/amd64
+#   ./build.sh darwin amd64       - build for darwin/amd64
+#   ./build.sh darwin arm64       - build for darwin/arm64
 MODE="${1:-local}"
+TARGET_OS="${2:-}"
+TARGET_ARCH="${3:-}"
+
+# Single platform build mode (cross-compile without packaging)
+if [[ "$MODE" != "release" && "$MODE" != "local" && -n "$TARGET_OS" ]]; then
+    echo -e "${YELLOW}Building for $MODE/${TARGET_ARCH:-amd64}...${NC}"
+
+    # Build flags - remove 'v' prefix if it exists
+    VERSION_CLEAN=$(echo "$VERSION" | sed 's/^v//')
+    LDFLAGS="-X 'github.com/vinisman/bbctl/cmd.Version=$VERSION_CLEAN' -X 'github.com/vinisman/bbctl/cmd.Commit=$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')'"
+
+    # Set output filename
+    OUTPUT_NAME="$PROJECT_NAME"
+    if [[ "$MODE" == "windows" ]]; then
+        OUTPUT_NAME="${PROJECT_NAME}.exe"
+    fi
+
+    # Set environment variables for cross-compilation
+    export GOOS="$MODE"
+    export GOARCH="${TARGET_ARCH:-amd64}"
+    export CGO_ENABLED=0
+
+    # Build the binary
+    if go build -ldflags "$LDFLAGS" -o "$OUTPUT_NAME" .; then
+        echo -e "${GREEN}✓ Built successfully: $(pwd)/$OUTPUT_NAME${NC}"
+        echo -e "${GREEN}  Platform: $MODE/${TARGET_ARCH:-amd64}${NC}"
+        exit 0
+    else
+        echo -e "${RED}✗ Build failed${NC}"
+        exit 1
+    fi
+fi
 
 if [[ "$MODE" != "release" ]]; then
     echo -e "${YELLOW}Building for host platform...${NC}"
@@ -72,10 +113,17 @@ VERSION_CLEAN=$(echo "$VERSION" | sed 's/^v//')
 LDFLAGS="-X 'github.com/vinisman/bbctl/cmd.Version=$VERSION_CLEAN' -X 'github.com/vinisman/bbctl/cmd.Commit=$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')'"
 
 # Platforms to build for
-PLATFORMS=(
-    "linux/amd64"
-    "windows/amd64"
-)
+# Can be overridden by command line arguments
+if [[ -n "$TARGET_OS" ]]; then
+    PLATFORMS=(
+        "$MODE/${TARGET_ARCH:-amd64}"
+    )
+else
+    PLATFORMS=(
+        "linux/amd64"
+        "windows/amd64"
+    )
+fi
 
 # Build function
 build_for_platform() {

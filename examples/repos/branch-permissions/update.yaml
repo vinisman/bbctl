@@ -1,0 +1,35 @@
+# Example of updating branch permissions
+# Must specify the id of existing permissions
+
+repositories:
+  - projectKey: DEV
+    repositorySlug: my-repo
+    branchPermissions:
+      # Update existing permission (id=85)
+      - id: 85
+        type: push
+        matcher:
+          id: "refs/heads/main"
+          displayId: "main"
+          type: "BRANCH"
+        users:
+          - admin
+          - new-admin  # Added new user
+        groups:
+          - repository-admins
+
+  - projectKey: DEV
+    repositorySlug: another-repo
+    branchPermissions:
+      # Update with changed restriction type
+      - id: 42
+        type: pull-request-only
+        matcher:
+          id: "refs/heads/develop"
+          displayId: "develop"
+          type: "BRANCH"
+        users:
+          - tech-lead
+        groups:
+          - developers
+          - qa-team  # Added new group

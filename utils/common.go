@@ -3,6 +3,7 @@ package utils
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -56,7 +57,7 @@ func ParseColumnsToLower(columns string) []string {
 
 func isSafePath(path string) bool {
 	cleanPath := filepath.Clean(path)
-	// Allow relative paths (including ..) and absolute paths.
+	// Allow relative and absolute paths.
 	// We only reject empty paths or ones containing NUL.
 	decision := cleanPath != "" && !strings.ContainsRune(cleanPath, '\x00')
 	config.GlobalLogger.Debug("isSafePath check",
@@ -79,8 +80,8 @@ func normalizePath(path string) string {
 // ParseFile is a universal function that parses YAML or JSON files into the provided struct pointer
 func ParseFile[T any](filePath string, out *T) error {
 	if filePath == "-" {
-		// Read from stdin
-		data, err := os.ReadFile("/dev/stdin") // alternatively, use io.ReadAll(os.Stdin)
+		// Read from stdin (cross-platform)
+		data, err := io.ReadAll(os.Stdin)
 		if err != nil {
 			return fmt.Errorf("failed to read from stdin: %w", err)
 		}

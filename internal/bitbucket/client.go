@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/vinisman/bbctl/internal/config"
 	openapi "github.com/vinisman/bitbucket-sdk-go/openapi"
@@ -73,7 +74,7 @@ func NewClient(ctx context.Context) (*Client, error) {
 	return &Client{
 		api:     openapi.NewAPIClient(cfgOpenAPI),
 		logger:  config.GlobalLogger,
-		client:  &http.Client{},
+		client:  &http.Client{Timeout: 30 * time.Second},
 		authCtx: authCtx,
 		config:  config.GlobalCfg,
 		Logger:  config.GlobalLogger,

@@ -43,8 +43,14 @@ BITBUCKET_PAGE_SIZE=50
   - Webhooks
   - Required builds
   - Reviewer groups
+  - Branch permissions
   - Manifest file information (from the root of the repository)
   - Default branch
+- **Branch permissions management**:
+  - **Get**: Retrieve branch permission restrictions
+  - **Create**: Add new branch restrictions (push, pull-request-only, delete-branch, etc.)
+  - **Update**: Modify existing branch restrictions
+  - **Delete**: Remove branch restrictions by ID
 - **Workzone plugin management** for repositories:
   - **Properties**: Repository workflow properties
   - **Reviewers**: Branch reviewers list
@@ -435,6 +441,149 @@ repositories:
 - **User ID enrichment**: If users are specified with only `name`, bbctl automatically fetches their IDs from Bitbucket
 - **Performance**: Providing both `name` and `id` in YAML avoids additional API calls
 - **Required fields**: Bitbucket API requires only `name` and `id` fields for users in reviewer groups
+- **Parallel processing**: All operations support parallel processing when working with multiple repositories
+- **Output formats**: All commands support `plain`, `yaml`, and `json` output formats
+
+## Branch Permissions Management Examples
+
+Branch permissions allow you to restrict operations on branches (push, delete, pull-request-only). bbctl supports creating, updating, deleting, and retrieving branch permissions.
+
+### Get Branch Permissions
+
+Get all branch permissions for a repository:
+```bash
+$ bbctl repo branch-permission get -s PROJECT_1/repo1 -o yaml
+repositories:
+  - projectKey: PROJECT_1
+    repositorySlug: repo1
+    branchPermissions:
+      - id: 84
+        type: pull-request-only
+        matcher:
+          id: refs/heads/main
+          displayId: main
+          type:
+            id: BRANCH
+            name: Branch
+        users:
+          - name: admin
+            emailAddress: admin@example.com
+            active: true
+            displayName: Admin
+            id: 2
+        groups:
+          - developers
+```
+
+Get branch permissions for multiple repositories:
+```bash
+$ bbctl repo branch-permission get -s PROJECT_1/repo1,PROJECT_1/repo2 -o json
+```
+
+Get branch permissions from YAML file:
+```bash
+$ bbctl repo branch-permission get -i repositories.yaml -o yaml
+```
+
+### Create Branch Permissions
+
+Create branch permissions from YAML file:
+```bash
+$ bbctl repo branch-permission create -i examples/repos/branch-permissions/create.yaml
+time=2026-03-11T13:30:33.243+03:00 level=INFO msg="Created branch permission" project=DEV repo=my-repo id=86 type=pull-request-only
+time=2026-03-11T13:30:33.251+03:00 level=INFO msg="Created branch permission" project=DEV repo=another-repo id=87 type=push
+```
+
+Example YAML file (`examples/repos/branch-permissions/create.yaml`):
+```yaml
+repositories:
+  - projectKey: DEV
+    repositorySlug: my-repo
+    branchPermissions:
+      - type: pull-request-only
+        matcher:
+          id: "refs/heads/main"
+          displayId: "main"
+          type: "BRANCH"
+        users:
+          - admin    # Username as string
+        groups:
+          - developers
+      - type: push
+        matcher:
+          id: "refs/heads/develop"
+          displayId: "develop"
+          type: "BRANCH"
+        groups:
+          - senior-developers
+```
+
+**Notes:**
+- `users` - list of usernames (strings)
+- `groups` - list of group names (strings)
+- `matcher.type` - `BRANCH` for specific branch or `PATTERN` for patterns (e.g., `release/*`)
+
+### Update Branch Permissions
+
+Update branch permissions (requires `id` for each permission):
+```bash
+$ bbctl repo branch-permission update -i examples/repos/branch-permissions/update.yaml
+time=2026-03-11T14:15:20.123+03:00 level=INFO msg="Updated branch permission" project=DEV repo=my-repo id=85 type=pull-request-only
+```
+
+Example YAML file (`examples/repos/branch-permissions/update.yaml`):
+```yaml
+repositories:
+  - projectKey: DEV
+    repositorySlug: my-repo
+    branchPermissions:
+      - id: 85    # ID is required for update
+        type: pull-request-only
+        matcher:
+          id: "refs/heads/main"
+          displayId: "main"
+          type: "BRANCH"
+        users:
+          - admin
+          - new-user  # Added new user
+        groups:
+          - developers
+```
+
+**Note:** Each branch permission must have an `id` field to identify which permission to update.
+
+### Delete Branch Permissions
+
+Delete branch permissions by ID from command line:
+```bash
+$ bbctl repo branch-permission delete -s PROJECT_1/repo1 --ids 85,86
+time=2026-03-11T14:20:15.123+03:00 level=INFO msg="Deleted branch permission" project=PROJECT_1 repo=repo1 id=85
+time=2026-03-11T14:20:15.125+03:00 level=INFO msg="Deleted branch permission" project=PROJECT_1 repo=repo1 id=86
+```
+
+Delete branch permissions from YAML file:
+```bash
+$ bbctl repo branch-permission delete -i examples/repos/branch-permissions/delete.yaml
+```
+
+Example YAML file (`examples/repos/branch-permissions/delete.yaml`):
+```yaml
+repositories:
+  - projectKey: DEV
+    repositorySlug: my-repo
+    branchPermissions:
+      - id: 85
+      - id: 86
+```
+
+### Notes about Branch Permissions
+
+- **Input format**: `users` and `groups` are specified as lists of strings (usernames/group names)
+- **Output format**: `users` are returned as full `RestApplicationUser` objects, `groups` as strings
+- **Matcher types**: 
+  - `BRANCH` - for specific branch (e.g., `main`, `develop`)
+  - `PATTERN` - for patterns (e.g., `release/*`, `feature/**`)
+- **Permission types**: `push`, `pull-request-only`, `delete-branch`, `merge-branch`, etc.
 - **Parallel processing**: All operations support parallel processing when working with multiple repositories
 - **Output formats**: All commands support `plain`, `yaml`, and `json` output formats
 
