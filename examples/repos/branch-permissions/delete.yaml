@@ -1,0 +1,16 @@
+# Example of deleting branch permissions
+# Specify only the ids of permissions to delete
+
+repositories:
+  - projectKey: DEV
+    repositorySlug: my-repo
+    branchPermissions:
+      - id: 85
+      - id: 86
+
+  - projectKey: OPS
+    repositorySlug: infrastructure
+    branchPermissions:
+      - id: 12
+      - id: 15
+      - id: 20

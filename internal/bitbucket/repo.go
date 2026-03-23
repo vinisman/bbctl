@@ -1,16 +1,19 @@
 package bitbucket
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/vinisman/bbctl/internal/config"
 	"github.com/vinisman/bbctl/internal/models"
 	"github.com/vinisman/bbctl/utils"
+	openapi "github.com/vinisman/bitbucket-sdk-go/openapi"
 	"gopkg.in/yaml.v3"
 )
 
@@ -29,11 +32,13 @@ func (c *Client) GetAllReposForProject(projectKey string, options models.Reposit
 			Execute()
 		if err != nil && httpResp != nil {
 			c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+			httpResp.Body.Close()
 		}
 		if err != nil {
 			c.logger.Error("Error fetching repositories", "project", projectKey, "error", err)
 			return nil, err
 		}
+		httpResp.Body.Close()
 
 		if options.Repository {
 			for _, r := range resp.Values {
@@ -267,7 +272,15 @@ func (c *Client) GetManifest(projectKey, repoSlug, filePath string) (map[string]
 
 	// Ensure httpClient is set and has a reasonable timeout
 	if c.api.GetConfig().HTTPClient == nil {
-		c.api.GetConfig().HTTPClient = &http.Client{Timeout: 15 * 1e9} // 15 seconds
+		timeout := time.Duration(15 * 1e9) // 15 seconds
+		httpClient := &http.Client{Timeout: timeout}
+		if config.GlobalCfg.Insecure {
+			transport := &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			}
+			httpClient.Transport = transport
+		}
+		c.api.GetConfig().HTTPClient = httpClient
 	}
 
 	resp, err := c.api.GetConfig().HTTPClient.Do(req)
@@ -664,4 +677,395 @@ func (c *Client) enrichRepository(r models.ExtendedRepository, projectKey string
 		return r, fmt.Errorf("enrichment errors: %v", errs)
 	}
 	return r, nil
+}
+
+// GetBranchPermissions fetches all branch permissions for multiple repositories
+func (c *Client) GetBranchPermissions(repos []models.ExtendedRepository) ([]models.ExtendedRepository, error) {
+	var errs []string
+
+	for i := range repos {
+		resp, httpResp, err := c.api.RepositoryAPI.
+			GetRestrictions1(c.authCtx, repos[i].ProjectKey, repos[i].RepositorySlug).
+			Execute()
+		if err != nil && httpResp != nil {
+			c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+		}
+		if err != nil {
+			errs = append(errs, fmt.Sprintf("failed to get branch permissions for %s/%s: %v", repos[i].ProjectKey, repos[i].RepositorySlug, err))
+			continue
+		}
+
+		repos[i].BranchPermissions = &resp.Values
+	}
+
+	if len(errs) > 0 {
+		return nil, fmt.Errorf("errors occurred fetching branch permissions: %s", strings.Join(errs, "; "))
+	}
+
+	return repos, nil
+}
+
+// CreateBranchPermissions creates new branch permissions concurrently for multiple repositories
+func (c *Client) CreateBranchPermissions(repos []models.ExtendedRepository) ([]models.ExtendedRepository, error) {
+	maxWorkers := config.GlobalMaxWorkers
+
+	type job struct {
+		repoIndex  int
+		repo       models.ExtendedRepository
+		permission openapi.RestRefRestriction
+	}
+
+	type result struct {
+		repoIndex  int
+		permission openapi.RestRefRestriction
+	}
+
+	// count the total number of permission tasks
+	var total int
+	for _, r := range repos {
+		if r.BranchPermissions != nil {
+			total += len(*r.BranchPermissions)
+		}
+	}
+
+	if total == 0 {
+		return []models.ExtendedRepository{}, nil
+	}
+
+	jobs := make(chan job, total)
+	resultsCh := make(chan result, total)
+	errCh := make(chan error, total)
+
+	var wg sync.WaitGroup
+
+	worker := func() {
+		defer wg.Done()
+		for j := range jobs {
+			// Convert RestRefRestriction to RestRefRestrictionCreate
+			restriction := openapi.RestRefRestrictionCreate{
+				Type:    j.permission.Type,
+				Matcher: j.permission.Matcher,
+				Scope:   j.permission.Scope,
+				Groups:  j.permission.Groups,
+			}
+			// Convert users from objects to strings (usernames)
+			for _, u := range j.permission.Users {
+				if u.Name != nil {
+					restriction.Users = append(restriction.Users, *u.Name)
+				}
+			}
+
+			created, httpResp, err := c.api.RepositoryAPI.
+				CreateRestrictions1WithUserNames(c.authCtx, j.repo.ProjectKey, j.repo.RepositorySlug, []openapi.RestRefRestrictionCreate{restriction})
+
+			if err != nil {
+				c.logger.Error("failed to create branch permission",
+					"error", err,
+					"project", j.repo.ProjectKey,
+					"repo", j.repo.RepositorySlug,
+					"type", utils.SafeValue(j.permission.Type))
+				if httpResp != nil {
+					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+				}
+				errCh <- err
+				continue
+			}
+
+			// created is []RestRefRestriction, take first one
+			if len(created) > 0 {
+				resultsCh <- result{repoIndex: j.repoIndex, permission: created[0]}
+
+				c.logger.Info("Created branch permission",
+					"project", j.repo.ProjectKey,
+					"repo", j.repo.RepositorySlug,
+					"id", utils.SafeValue(created[0].Id),
+					"type", utils.SafeValue(created[0].Type))
+			}
+		}
+	}
+
+	// start worker pool
+	wg.Add(maxWorkers)
+	for range maxWorkers {
+		go worker()
+	}
+
+	// send all jobs to the channel
+	for i, r := range repos {
+		if r.BranchPermissions != nil {
+			for _, perm := range *r.BranchPermissions {
+				jobs <- job{repoIndex: i, repo: r, permission: perm}
+			}
+		}
+	}
+	close(jobs)
+
+	// wait for workers and close channels
+	wg.Wait()
+	close(resultsCh)
+	close(errCh)
+
+	// collect results into newRepos
+	newRepos := make([]models.ExtendedRepository, len(repos))
+	for i := range repos {
+		newRepos[i].ProjectKey = repos[i].ProjectKey
+		newRepos[i].RepositorySlug = repos[i].RepositorySlug
+		newRepos[i].BranchPermissions = &[]openapi.RestRefRestriction{}
+	}
+
+	for res := range resultsCh {
+		*newRepos[res.repoIndex].BranchPermissions = append(*newRepos[res.repoIndex].BranchPermissions, res.permission)
+	}
+
+	// collect all errors
+	var firstErr error
+	for e := range errCh {
+		if firstErr == nil {
+			firstErr = e
+		}
+	}
+
+	// filter newRepos: only those with at least one permission
+	createdRepos := []models.ExtendedRepository{}
+	for _, r := range newRepos {
+		if len(*r.BranchPermissions) > 0 {
+			createdRepos = append(createdRepos, r)
+		}
+	}
+	return createdRepos, firstErr
+}
+
+// UpdateBranchPermissions updates existing branch permissions concurrently
+// Uses the same CreateRestrictions1WithUserNames API as create (Bitbucket upsert behavior)
+func (c *Client) UpdateBranchPermissions(repos []models.ExtendedRepository) ([]models.ExtendedRepository, error) {
+	maxWorkers := config.GlobalMaxWorkers
+
+	type job struct {
+		repoIndex  int
+		repo       models.ExtendedRepository
+		permission openapi.RestRefRestriction
+	}
+
+	type result struct {
+		repoIndex  int
+		permission openapi.RestRefRestriction
+	}
+
+	// count total tasks
+	var total int
+	for _, r := range repos {
+		if r.BranchPermissions != nil {
+			total += len(*r.BranchPermissions)
+		}
+	}
+
+	if total == 0 {
+		return []models.ExtendedRepository{}, nil
+	}
+
+	jobs := make(chan job, total)
+	resultsCh := make(chan result, total)
+	errCh := make(chan error, total)
+
+	var wg sync.WaitGroup
+
+	worker := func() {
+		defer wg.Done()
+		for j := range jobs {
+			if j.permission.Id == nil {
+				errCh <- fmt.Errorf("permission ID is required for update in %s/%s", j.repo.ProjectKey, j.repo.RepositorySlug)
+				continue
+			}
+
+			// Convert RestRefRestriction to RestRefRestrictionCreate
+			restriction := openapi.RestRefRestrictionCreate{
+				Id:      j.permission.Id,
+				Type:    j.permission.Type,
+				Matcher: j.permission.Matcher,
+				Scope:   j.permission.Scope,
+				Groups:  j.permission.Groups,
+			}
+			// Convert users from objects to strings (usernames)
+			for _, u := range j.permission.Users {
+				if u.Name != nil {
+					restriction.Users = append(restriction.Users, *u.Name)
+				}
+			}
+
+			updated, httpResp, err := c.api.RepositoryAPI.
+				CreateRestrictions1WithUserNames(c.authCtx, j.repo.ProjectKey, j.repo.RepositorySlug, []openapi.RestRefRestrictionCreate{restriction})
+
+			if err != nil {
+				if httpResp != nil {
+					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+					if httpResp.StatusCode == 404 {
+						c.logger.Info("Permission not found during update, skipping",
+							"project", j.repo.ProjectKey,
+							"repo", j.repo.RepositorySlug,
+							"id", utils.Int32PtrToString(j.permission.Id))
+						continue
+					}
+				}
+				errCh <- fmt.Errorf("failed to update branch permission %s in %s/%s: %w", utils.Int32PtrToString(j.permission.Id), j.repo.ProjectKey, j.repo.RepositorySlug, err)
+				continue
+			}
+
+			// updated is []RestRefRestriction, take first one
+			if len(updated) > 0 {
+				resultsCh <- result{repoIndex: j.repoIndex, permission: updated[0]}
+
+				c.logger.Info("Updated branch permission",
+					"project", j.repo.ProjectKey,
+					"repo", j.repo.RepositorySlug,
+					"id", utils.SafeValue(updated[0].Id),
+					"type", utils.SafeValue(updated[0].Type))
+			}
+		}
+	}
+
+	// start worker pool
+	wg.Add(maxWorkers)
+	for range maxWorkers {
+		go worker()
+	}
+
+	// send all jobs to the channel
+	for i, r := range repos {
+		if r.BranchPermissions != nil {
+			for _, perm := range *r.BranchPermissions {
+				jobs <- job{repoIndex: i, repo: r, permission: perm}
+			}
+		}
+	}
+	close(jobs)
+
+	// wait for workers and close channels
+	wg.Wait()
+	close(resultsCh)
+	close(errCh)
+
+	// collect results into newRepos
+	newRepos := make([]models.ExtendedRepository, len(repos))
+	for i := range repos {
+		newRepos[i].ProjectKey = repos[i].ProjectKey
+		newRepos[i].RepositorySlug = repos[i].RepositorySlug
+		newRepos[i].BranchPermissions = &[]openapi.RestRefRestriction{}
+	}
+
+	for res := range resultsCh {
+		*newRepos[res.repoIndex].BranchPermissions = append(*newRepos[res.repoIndex].BranchPermissions, res.permission)
+	}
+
+	// collect first error
+	var firstErr error
+	for e := range errCh {
+		if firstErr == nil {
+			firstErr = e
+		}
+	}
+
+	// filter newRepos: only those with at least one permission
+	updatedRepos := []models.ExtendedRepository{}
+	for _, r := range newRepos {
+		if len(*r.BranchPermissions) > 0 {
+			updatedRepos = append(updatedRepos, r)
+		}
+	}
+
+	return updatedRepos, firstErr
+}
+
+// DeleteBranchPermissions deletes branch permissions concurrently by ID
+func (c *Client) DeleteBranchPermissions(repos []models.ExtendedRepository) error {
+	maxWorkers := config.GlobalMaxWorkers
+
+	type job struct {
+		repo       models.ExtendedRepository
+		permission openapi.RestRefRestriction
+	}
+
+	// count total tasks
+	var total int
+	for _, r := range repos {
+		if r.BranchPermissions != nil {
+			total += len(*r.BranchPermissions)
+		}
+	}
+
+	jobs := make(chan job, total)
+	errCh := make(chan error, total)
+
+	var wg sync.WaitGroup
+
+	worker := func() {
+		defer wg.Done()
+		for j := range jobs {
+			if j.permission.Id == nil {
+				c.logger.Error("Delete branch permission failed",
+					"project", j.repo.ProjectKey,
+					"repo", j.repo.RepositorySlug,
+					"id", nil,
+					"error", "permission ID is required")
+				errCh <- fmt.Errorf("delete permission failed: missing id")
+				continue
+			}
+
+			httpResp, err := c.api.RepositoryAPI.
+				DeleteRestriction1(c.authCtx, j.repo.ProjectKey, utils.Int32PtrToString(j.permission.Id), j.repo.RepositorySlug).
+				Execute()
+			if err != nil {
+				if httpResp != nil {
+					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+					if httpResp.StatusCode == 404 {
+						c.logger.Info("Branch permission was already absent (404), skipping",
+							"project", j.repo.ProjectKey,
+							"repo", j.repo.RepositorySlug,
+							"id", utils.Int32PtrToString(j.permission.Id))
+						continue
+					}
+				}
+				c.logger.Error("Delete branch permission failed",
+					"project", j.repo.ProjectKey,
+					"repo", j.repo.RepositorySlug,
+					"id", utils.Int32PtrToString(j.permission.Id),
+					"error", err)
+				errCh <- err
+				continue
+			}
+
+			c.logger.Info("Deleted branch permission (or was not present)",
+				"project", j.repo.ProjectKey,
+				"repo", j.repo.RepositorySlug,
+				"id", utils.Int32PtrToString(j.permission.Id))
+		}
+	}
+
+	// start worker pool
+	wg.Add(maxWorkers)
+	for range maxWorkers {
+		go worker()
+	}
+
+	// send all jobs to the channel
+	for _, r := range repos {
+		if r.BranchPermissions != nil {
+			for _, perm := range *r.BranchPermissions {
+				jobs <- job{repo: r, permission: perm}
+			}
+		}
+	}
+	close(jobs)
+
+	wg.Wait()
+	close(errCh)
+
+	// collect all errors
+	var errs []string
+	for e := range errCh {
+		errs = append(errs, e.Error())
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("errors occurred deleting branch permissions: %s", strings.Join(errs, "; "))
+	}
+	return nil
 }

@@ -2,6 +2,7 @@ package repo
 
 import (
 	"github.com/spf13/cobra"
+	branchpermission "github.com/vinisman/bbctl/cmd/repo/branch-permission"
 	requiredbuild "github.com/vinisman/bbctl/cmd/repo/required-build"
 	reviewergroup "github.com/vinisman/bbctl/cmd/repo/reviewer-group"
 	"github.com/vinisman/bbctl/cmd/repo/webhook"
@@ -25,6 +26,9 @@ func NewRepoCmd() *cobra.Command {
 
 		// webhooks
 		webhook.RepoWebHookCmd(),
+
+		// branch-permissions
+		branchpermission.RepoBranchPermissionCmd(),
 
 		// required-builds
 		requiredbuild.RepoRequiredBuildCmd(),

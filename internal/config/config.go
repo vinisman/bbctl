@@ -14,6 +14,7 @@ type Config struct {
 	Password         string
 	PageSize         int
 	GlobalMaxWorkers int
+	Insecure         bool
 }
 
 var (
@@ -43,6 +44,7 @@ func LoadConfig() (*Config, error) {
 	token := os.Getenv("BITBUCKET_TOKEN")
 	username := os.Getenv("BITBUCKET_USERNAME")
 	password := os.Getenv("BITBUCKET_PASSWORD")
+	insecure := os.Getenv("BITBUCKET_INSECURE") == "true"
 
 	cfg := &Config{
 		BaseURL:          baseURL,
@@ -51,6 +53,7 @@ func LoadConfig() (*Config, error) {
 		Password:         password,
 		PageSize:         pageSize,
 		GlobalMaxWorkers: maxWorkers,
+		Insecure:         insecure,
 	}
 	GlobalCfg = cfg
 
