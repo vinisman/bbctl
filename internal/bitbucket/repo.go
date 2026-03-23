@@ -1,12 +1,14 @@
 package bitbucket
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/vinisman/bbctl/internal/config"
 	"github.com/vinisman/bbctl/internal/models"
@@ -270,7 +272,15 @@ func (c *Client) GetManifest(projectKey, repoSlug, filePath string) (map[string]
 
 	// Ensure httpClient is set and has a reasonable timeout
 	if c.api.GetConfig().HTTPClient == nil {
-		c.api.GetConfig().HTTPClient = &http.Client{Timeout: 15 * 1e9} // 15 seconds
+		timeout := time.Duration(15 * 1e9) // 15 seconds
+		httpClient := &http.Client{Timeout: timeout}
+		if config.GlobalCfg.Insecure {
+			transport := &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			}
+			httpClient.Transport = transport
+		}
+		c.api.GetConfig().HTTPClient = httpClient
 	}
 
 	resp, err := c.api.GetConfig().HTTPClient.Do(req)

@@ -2,6 +2,7 @@ package bitbucket
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -70,11 +71,21 @@ func NewClient(ctx context.Context) (*Client, error) {
 		return nil, fmt.Errorf("either token or username/password must be provided")
 	}
 
+	// Configure HTTP client with optional TLS skip verify
+	httpClient := &http.Client{Timeout: 30 * time.Second}
+	if config.GlobalCfg.Insecure {
+		config.GlobalLogger.Debug("Insecure mode enabled - skipping TLS certificate verification")
+		transport := &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+		httpClient.Transport = transport
+	}
+
 	config.GlobalLogger.Debug("Bitbucket client successfully initialized")
 	return &Client{
 		api:     openapi.NewAPIClient(cfgOpenAPI),
 		logger:  config.GlobalLogger,
-		client:  &http.Client{Timeout: 30 * time.Second},
+		client:  httpClient,
 		authCtx: authCtx,
 		config:  config.GlobalCfg,
 		Logger:  config.GlobalLogger,
