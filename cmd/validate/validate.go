@@ -341,6 +341,33 @@ func formatErrorMessage(errStr string) string {
 		}
 	}
 
+	// If it's an unexpected additional properties error - simplify
+	if strings.Contains(lastPart, "unexpected additional properties") {
+		// Format: "root: unexpected additional properties [\"prop1\" \"prop2\"]"
+		path := "root"
+		if idx := strings.Index(lastPart, ":"); idx >= 0 {
+			path = strings.TrimSpace(lastPart[:idx])
+			path = cleanPath(path)
+			path = strings.TrimSuffix(path, ":")
+		}
+		if path == "" {
+			path = "root"
+		}
+		
+		// Extract properties list
+		if idx := strings.Index(lastPart, "["); idx >= 0 {
+			endIdx := strings.Index(lastPart[idx:], "]")
+			if endIdx >= 0 {
+				props := lastPart[idx+1 : idx+endIdx]
+				// Clean up the properties list
+				props = strings.ReplaceAll(props, "\"", "")
+				props = strings.TrimSpace(props)
+				return fmt.Sprintf("%s: unexpected fields (allowed: none, got: %s)", path, props)
+			}
+		}
+		return path + ": unexpected additional properties"
+	}
+
 	// For other errors - just clean the path
 	lastPart = cleanPath(lastPart)
 
