@@ -89,11 +89,16 @@ func (c *Client) GetAllReposForProject(projectKey string, options models.Reposit
 		}
 		close(jobsCh)
 
+		// Collect results and return on first error
 		for i := 0; i < len(repos); i++ {
 			res := <-resultsCh
 			repos[res.idx] = res.repo
 			if res.err != nil {
-				c.logger.Warn("Failed enriching repository", "project", projectKey, "error", res.err)
+				// Drain remaining results to avoid goroutine leaks
+				for j := i + 1; j < len(repos); j++ {
+					<-resultsCh
+				}
+				return nil, res.err
 			}
 		}
 	}
@@ -607,7 +612,6 @@ func (c *Client) ForkRepos(repos []models.ExtendedRepository) ([]models.Extended
 
 // enrichRepository enriches the given ExtendedRepository with additional data according to options.
 func (c *Client) enrichRepository(r models.ExtendedRepository, projectKey string, options models.RepositoryOptions) (models.ExtendedRepository, error) {
-	var errs []error
 	// Default branch
 	if options.DefaultBranch && r.RepositorySlug != "" {
 		b, err := c.GetDefaultBranch(projectKey, r.RepositorySlug)
@@ -618,7 +622,7 @@ func (c *Client) enrichRepository(r models.ExtendedRepository, projectKey string
 				r.RestRepository.DefaultBranch = &b
 			}
 		} else {
-			errs = append(errs, fmt.Errorf("defaultBranch: %w", err))
+			return r, fmt.Errorf("defaultBranch: %w", err)
 		}
 	}
 	// Webhooks
@@ -627,7 +631,7 @@ func (c *Client) enrichRepository(r models.ExtendedRepository, projectKey string
 		if err == nil && len(updated) > 0 {
 			r.Webhooks = updated[0].Webhooks
 		} else if err != nil {
-			errs = append(errs, fmt.Errorf("webhooks: %w", err))
+			return r, fmt.Errorf("webhooks: %w", err)
 		}
 	}
 	// Required builds only
@@ -650,6 +654,7 @@ func (c *Client) enrichRepository(r models.ExtendedRepository, projectKey string
 				"slug", r.RepositorySlug,
 				"filePath", *options.ManifestPath,
 				"error", err)
+			return r, fmt.Errorf("manifest: %w", err)
 		}
 	}
 
@@ -666,6 +671,7 @@ func (c *Client) enrichRepository(r models.ExtendedRepository, projectKey string
 					"slug", r.RepositorySlug,
 					"filePath", configPath,
 					"error", err)
+				return r, fmt.Errorf("config %s: %w", key, err)
 			}
 		}
 		if len(configs) > 0 {
@@ -673,9 +679,6 @@ func (c *Client) enrichRepository(r models.ExtendedRepository, projectKey string
 		}
 	}
 
-	if len(errs) > 0 {
-		return r, fmt.Errorf("enrichment errors: %v", errs)
-	}
 	return r, nil
 }
 
