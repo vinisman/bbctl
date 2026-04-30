@@ -34,6 +34,7 @@ You can specify either:
   --repositorySlug to get a specific repository
   --input to load repository identifiers from a YAML file
 Only one of these options should be used at a time.`,
+		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			parseConfigFiles := func(items []string) (map[string]string, error) {
 				result := make(map[string]string)
@@ -158,12 +159,21 @@ Only one of these options should be used at a time.`,
 				if err := utils.ParseFile(input, &parsed); err != nil {
 					return err
 				}
+				var inputErrors []error
 				for _, repo := range parsed.Repositories {
 					r, err := client.GetReposBySlugs(repo.ProjectKey, []string{repo.RepositorySlug}, options)
 					if err != nil {
-						return err
+						client.Logger.Error("Skipping repository due to error",
+							"project", repo.ProjectKey,
+							"slug", repo.RepositorySlug,
+							"error", err)
+						inputErrors = append(inputErrors, err)
+						continue
 					}
 					repos = append(repos, r...)
+				}
+				if len(repos) == 0 && len(inputErrors) > 0 {
+					return fmt.Errorf("no repositories found, %d error(s) occurred", len(inputErrors))
 				}
 			} else {
 				projects := utils.ParseColumns(projectKey)

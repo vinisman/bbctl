@@ -122,25 +122,26 @@ func (c *Client) GetReposBySlugs(projectKey string, slugs []string, options mode
 	for w := 0; w < maxWorkers; w++ {
 		go func() {
 			for slug := range jobsCh {
+				// Always fetch repository to verify it exists and belongs to the correct project.
+				resp, httpResp, err := c.api.ProjectAPI.GetRepository(c.authCtx, projectKey, slug).Execute()
+				if err != nil && httpResp != nil {
+					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+				}
+				if err != nil {
+					c.logger.Error("Error fetching repository", "project", projectKey, "slug", slug, "error", err)
+					resultsCh <- result{err: err}
+					continue
+				}
+				if resp.Project != nil && !strings.EqualFold(resp.Project.Key, projectKey) {
+					c.logger.Error("Repository not found in requested project (may have been moved)",
+						"requested_project", projectKey,
+						"actual_project", resp.Project.Key,
+						"slug", slug)
+					resultsCh <- result{err: fmt.Errorf("repository %s not found in project %s (found in %s, it may have been moved)", slug, projectKey, resp.Project.Key)}
+					continue
+				}
 				var r models.ExtendedRepository
 				if options.Repository {
-					resp, httpResp, err := c.api.ProjectAPI.GetRepository(c.authCtx, projectKey, slug).Execute()
-					if err != nil && httpResp != nil {
-						c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
-					}
-					if err != nil {
-						c.logger.Error("Error fetching repository", "project", projectKey, "slug", slug, "error", err)
-						resultsCh <- result{err: err}
-						continue
-					}
-					if resp.Project != nil && !strings.EqualFold(resp.Project.Key, projectKey) {
-						c.logger.Error("Repository not found in requested project (may have been moved)",
-							"requested_project", projectKey,
-							"actual_project", resp.Project.Key,
-							"slug", slug)
-						resultsCh <- result{err: fmt.Errorf("repository %s not found in project %s (found in %s, it may have been moved)", slug, projectKey, resp.Project.Key)}
-						continue
-					}
 					r = models.ExtendedRepository{
 						RestRepository: resp,
 						ProjectKey:     projectKey,
