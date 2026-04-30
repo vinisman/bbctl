@@ -133,6 +133,14 @@ func (c *Client) GetReposBySlugs(projectKey string, slugs []string, options mode
 						resultsCh <- result{err: err}
 						continue
 					}
+					if resp.Project != nil && !strings.EqualFold(resp.Project.Key, projectKey) {
+						c.logger.Error("Repository not found in requested project (may have been moved)",
+							"requested_project", projectKey,
+							"actual_project", resp.Project.Key,
+							"slug", slug)
+						resultsCh <- result{err: fmt.Errorf("repository %s not found in project %s (found in %s, it may have been moved)", slug, projectKey, resp.Project.Key)}
+						continue
+					}
 					r = models.ExtendedRepository{
 						RestRepository: resp,
 						ProjectKey:     projectKey,

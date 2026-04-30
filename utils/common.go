@@ -55,6 +55,23 @@ func ParseColumnsToLower(columns string) []string {
 	return out
 }
 
+// ParseColumns splits a comma-separated string and trims whitespace from each
+// element without changing case. Use this for Bitbucket identifiers (project
+// keys, repository slugs) where the original casing must be preserved.
+func ParseColumns(columns string) []string {
+	if columns == "" {
+		return nil
+	}
+	parts := strings.Split(columns, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if s := strings.TrimSpace(p); s != "" {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
 func isSafePath(path string) bool {
 	cleanPath := filepath.Clean(path)
 	// Allow relative and absolute paths.
