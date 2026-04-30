@@ -166,8 +166,8 @@ Only one of these options should be used at a time.`,
 					repos = append(repos, r...)
 				}
 			} else {
-				projects := utils.ParseColumnsToLower(projectKey)
-				slugList := utils.ParseColumnsToLower(repositorySlug)
+				projects := utils.ParseColumns(projectKey)
+				slugList := utils.ParseColumns(repositorySlug)
 
 				if columns != "" {
 					cols = utils.ParseColumnsToLower(columns)
