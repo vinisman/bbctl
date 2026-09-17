@@ -708,21 +708,68 @@ func (c *Client) enrichRepository(r models.ExtendedRepository, projectKey string
 
 // GetBranchPermissions fetches all branch permissions for multiple repositories
 func (c *Client) GetBranchPermissions(repos []models.ExtendedRepository) ([]models.ExtendedRepository, error) {
-	var errs []string
+	maxWorkers := config.GlobalMaxWorkers
+	if maxWorkers < 1 {
+		maxWorkers = 1
+	}
+
+	type job struct {
+		repoIndex int
+		repo      models.ExtendedRepository
+	}
+	type result struct {
+		repoIndex int
+		repo      models.ExtendedRepository
+	}
+
+	jobs := make(chan job, len(repos))
+	resultsCh := make(chan result, len(repos))
+	errCh := make(chan error, len(repos))
+
+	var wg sync.WaitGroup
+
+	worker := func() {
+		defer wg.Done()
+		for j := range jobs {
+			resp, httpResp, err := c.api.RepositoryAPI.
+				GetRestrictions1(c.authCtx, j.repo.ProjectKey, j.repo.RepositorySlug).
+				Execute()
+			if err != nil && httpResp != nil {
+				c.logHTTPResponse(httpResp)
+			}
+			if err != nil {
+				errCh <- fmt.Errorf("failed to get branch permissions for %s/%s: %w", j.repo.ProjectKey, j.repo.RepositorySlug, err)
+				continue
+			}
+
+			j.repo.BranchPermissions = &resp.Values
+			resultsCh <- result{repoIndex: j.repoIndex, repo: j.repo}
+		}
+	}
+
+	wg.Add(maxWorkers)
+	for range maxWorkers {
+		go worker()
+	}
 
 	for i := range repos {
-		resp, httpResp, err := c.api.RepositoryAPI.
-			GetRestrictions1(c.authCtx, repos[i].ProjectKey, repos[i].RepositorySlug).
-			Execute()
-		if err != nil && httpResp != nil {
-			c.logHTTPResponse(httpResp)
-		}
-		if err != nil {
-			errs = append(errs, fmt.Sprintf("failed to get branch permissions for %s/%s: %v", repos[i].ProjectKey, repos[i].RepositorySlug, err))
-			continue
-		}
+		jobs <- job{repoIndex: i, repo: repos[i]}
+	}
+	close(jobs)
 
-		repos[i].BranchPermissions = &resp.Values
+	go func() {
+		wg.Wait()
+		close(resultsCh)
+	}()
+
+	for res := range resultsCh {
+		repos[res.repoIndex] = res.repo
+	}
+
+	close(errCh)
+	var errs []string
+	for err := range errCh {
+		errs = append(errs, err.Error())
 	}
 
 	if len(errs) > 0 {
