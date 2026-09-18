@@ -81,6 +81,14 @@ func NewClient(ctx context.Context) (*Client, error) {
 		httpClient.Transport = transport
 	}
 
+	// Retry layer: idempotent requests are retried on 5xx/network errors,
+	// any method on 429/502/503/504
+	applyRetryTransport(httpClient, config.GlobalLogger)
+
+	// IMPORTANT: the HTTP client must be passed to the SDK — otherwise Timeout
+	// and the transport (TLS/retry) are not applied to API requests
+	cfgOpenAPI.HTTPClient = httpClient
+
 	config.GlobalLogger.Debug("Bitbucket client successfully initialized")
 	return &Client{
 		api:     openapi.NewAPIClient(cfgOpenAPI),

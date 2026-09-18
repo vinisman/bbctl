@@ -21,6 +21,10 @@ var (
 	GlobalCfg        *Config
 	GlobalLogger     *slog.Logger
 	GlobalMaxWorkers int
+
+	// HTTP client retry parameters (BITBUCKET_RETRY_*)
+	GlobalRetryMaxAttempts int
+	GlobalRetryBaseDelayMs int
 )
 
 // LoadConfig loads configuration from environment variables
@@ -39,6 +43,21 @@ func LoadConfig() (*Config, error) {
 		}
 	}
 	GlobalMaxWorkers = maxWorkers
+
+	// HTTP client retry: total attempts (including the first) and base backoff delay
+	GlobalRetryMaxAttempts = 4
+	if val := os.Getenv("BITBUCKET_RETRY_MAX_ATTEMPTS"); val != "" {
+		if ra, err := strconv.Atoi(val); err == nil && ra >= 1 {
+			GlobalRetryMaxAttempts = ra
+		}
+	}
+
+	GlobalRetryBaseDelayMs = 500
+	if val := os.Getenv("BITBUCKET_RETRY_BASE_DELAY_MS"); val != "" {
+		if rd, err := strconv.Atoi(val); err == nil && rd >= 0 {
+			GlobalRetryBaseDelayMs = rd
+		}
+	}
 
 	baseURL := os.Getenv("BITBUCKET_BASE_URL")
 	token := os.Getenv("BITBUCKET_TOKEN")
