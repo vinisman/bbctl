@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"time"
@@ -15,10 +16,23 @@ import (
 type Client struct {
 	api     *openapi.APIClient
 	logger  *slog.Logger
-	client  *http.Client
 	authCtx context.Context
 	config  *config.Config
 	Logger  *slog.Logger
+}
+
+// logHTTPResponse logs status code and body of a failed API response.
+// Safe with nil response. The body is consumed: the SDK has already read it.
+func (c *Client) logHTTPResponse(httpResp *http.Response) {
+	if httpResp == nil {
+		return
+	}
+	body, err := io.ReadAll(httpResp.Body)
+	if err != nil {
+		c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "bodyReadError", err)
+		return
+	}
+	c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", string(body))
 }
 
 // API exposes the underlying Bitbucket API client (read-only usage outside)
@@ -71,7 +85,8 @@ func NewClient(ctx context.Context) (*Client, error) {
 		return nil, fmt.Errorf("either token or username/password must be provided")
 	}
 
-	// Configure HTTP client with optional TLS skip verify
+	// Configure HTTP client with optional TLS skip verify and a sane timeout,
+	// and wire it into the SDK config so all API calls use it.
 	httpClient := &http.Client{Timeout: 30 * time.Second}
 	if config.GlobalCfg.Insecure {
 		config.GlobalLogger.Debug("Insecure mode enabled - skipping TLS certificate verification")
@@ -80,12 +95,12 @@ func NewClient(ctx context.Context) (*Client, error) {
 		}
 		httpClient.Transport = transport
 	}
+	cfgOpenAPI.HTTPClient = httpClient
 
 	config.GlobalLogger.Debug("Bitbucket client successfully initialized")
 	return &Client{
 		api:     openapi.NewAPIClient(cfgOpenAPI),
 		logger:  config.GlobalLogger,
-		client:  httpClient,
 		authCtx: authCtx,
 		config:  config.GlobalCfg,
 		Logger:  config.GlobalLogger,

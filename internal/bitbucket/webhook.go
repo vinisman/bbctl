@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 	"strings"
 	"sync"
 
@@ -23,17 +22,6 @@ func (c *Client) GetWebhooks(repos []models.ExtendedRepository) ([]models.Extend
 		httpResp, err := c.api.RepositoryAPI.FindWebhooks1(c.authCtx, repos[i].ProjectKey, repos[i].RepositorySlug).Execute()
 		if err != nil {
 			errs = append(errs, fmt.Sprintf("failed to call FindWebhooks1 for %s/%s: %v", repos[i].ProjectKey, repos[i].RepositorySlug, err))
-			continue
-		}
-
-		if httpResp.StatusCode != http.StatusOK {
-			bodyBytes, readErr := io.ReadAll(httpResp.Body)
-			httpResp.Body.Close()
-			if readErr != nil {
-				errs = append(errs, fmt.Sprintf("unexpected status %d for %s/%s: failed to read body: %v", httpResp.StatusCode, repos[i].ProjectKey, repos[i].RepositorySlug, readErr))
-			} else {
-				errs = append(errs, fmt.Sprintf("unexpected status %d for %s/%s: %s", httpResp.StatusCode, repos[i].ProjectKey, repos[i].RepositorySlug, string(bodyBytes)))
-			}
 			continue
 		}
 
@@ -80,7 +68,9 @@ func (c *Client) CreateWebhooks(repos []models.ExtendedRepository) ([]models.Ext
 	// count the total number of webhook tasks
 	var total int
 	for _, r := range repos {
-		total += len(*r.Webhooks)
+		if r.Webhooks != nil {
+			total += len(*r.Webhooks)
+		}
 	}
 
 	if total == 0 {
@@ -108,7 +98,7 @@ func (c *Client) CreateWebhooks(repos []models.ExtendedRepository) ([]models.Ext
 					"repo", j.repo.RepositorySlug,
 					"name", utils.SafeValue(j.webhook.Name))
 				if httpResp != nil {
-					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+					c.logHTTPResponse(httpResp)
 				}
 				errCh <- err
 				continue
@@ -132,6 +122,9 @@ func (c *Client) CreateWebhooks(repos []models.ExtendedRepository) ([]models.Ext
 
 	// send all jobs to the channel
 	for i, r := range repos {
+		if r.Webhooks == nil {
+			continue
+		}
 		for _, wh := range *r.Webhooks {
 			jobs <- job{repoIndex: i, repo: r, webhook: wh}
 		}
@@ -191,7 +184,9 @@ func (c *Client) UpdateWebhooks(repos []models.ExtendedRepository) ([]models.Ext
 	// count total tasks
 	var total int
 	for _, r := range repos {
-		total += len(*r.Webhooks)
+		if r.Webhooks != nil {
+			total += len(*r.Webhooks)
+		}
 	}
 
 	if total == 0 {
@@ -218,7 +213,7 @@ func (c *Client) UpdateWebhooks(repos []models.ExtendedRepository) ([]models.Ext
 
 			if err != nil {
 				if httpResp != nil {
-					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+					c.logHTTPResponse(httpResp)
 					if httpResp.StatusCode == 404 {
 						c.logger.Info("Webhook not found during update, skipping",
 							"project", j.repo.ProjectKey,
@@ -250,6 +245,9 @@ func (c *Client) UpdateWebhooks(repos []models.ExtendedRepository) ([]models.Ext
 
 	// send all jobs to the channel
 	for i, r := range repos {
+		if r.Webhooks == nil {
+			continue
+		}
 		for _, wh := range *r.Webhooks {
 			jobs <- job{repoIndex: i, repo: r, webhook: wh}
 		}
@@ -304,7 +302,9 @@ func (c *Client) DeleteWebhooks(repos []models.ExtendedRepository) error {
 	// count total tasks
 	var total int
 	for _, r := range repos {
-		total += len(*r.Webhooks)
+		if r.Webhooks != nil {
+			total += len(*r.Webhooks)
+		}
 	}
 
 	jobs := make(chan job, total)
@@ -330,7 +330,7 @@ func (c *Client) DeleteWebhooks(repos []models.ExtendedRepository) error {
 				Execute()
 			if err != nil {
 				if httpResp != nil {
-					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+					c.logHTTPResponse(httpResp)
 					if httpResp.StatusCode == 404 {
 						c.logger.Info("Webhook was already absent (404), skipping",
 							"project", j.repo.ProjectKey,
@@ -363,6 +363,9 @@ func (c *Client) DeleteWebhooks(repos []models.ExtendedRepository) error {
 
 	// send all jobs to the channel
 	for _, r := range repos {
+		if r.Webhooks == nil {
+			continue
+		}
 		for _, wh := range *r.Webhooks {
 			jobs <- job{repo: r, webhook: wh}
 		}
@@ -378,7 +381,7 @@ func (c *Client) DeleteWebhooks(repos []models.ExtendedRepository) error {
 		errs = append(errs, e.Error())
 	}
 	if len(errs) > 0 {
-		return fmt.Errorf("errors occurred deleting webhooks")
+		return fmt.Errorf("errors occurred deleting webhooks: %s", strings.Join(errs, "; "))
 	}
 	return nil
 }

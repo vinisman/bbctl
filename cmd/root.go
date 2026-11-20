@@ -37,6 +37,8 @@ func NewRootCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "bbctl",
 		Short: "Bitbucket Data Center CLI",
+		// Do not print usage on runtime errors (only on flag/usage mistakes)
+		SilenceUsage: true,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			if cmd.Name() == "version" {
 				return nil

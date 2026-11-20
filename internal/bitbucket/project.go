@@ -22,7 +22,7 @@ func GetAllProjects(c *Client) ([]openapi.RestProject, error) {
 			Limit(float32(c.config.PageSize)).
 			Execute()
 		if err != nil && httpResp != nil {
-			c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+			c.logHTTPResponse(httpResp)
 		}
 		if err != nil {
 			c.logger.Error("Failed to fetch projects", "error", err)
@@ -61,7 +61,7 @@ func (c *Client) GetProjects(keys []string) ([]openapi.RestProject, error) {
 			for j := range jobsCh {
 				resp, httpResp, err := c.api.ProjectAPI.GetProject(c.authCtx, j.key).Execute()
 				if err != nil && httpResp != nil {
-					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+					c.logHTTPResponse(httpResp)
 				}
 				if err != nil {
 					c.logger.Error("Failed to fetch project", "key", j.key, "error", err)
@@ -115,7 +115,7 @@ func (c *Client) DeleteProjects(keys []string) error {
 			for k := range jobsCh {
 				httpResp, err := c.api.ProjectAPI.DeleteProject(c.authCtx, k).Execute()
 				if err != nil && httpResp != nil {
-					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+					c.logHTTPResponse(httpResp)
 				}
 				if err != nil {
 					resultsCh <- result{key: k, err: err}
@@ -180,7 +180,7 @@ func (c *Client) CreateProjects(projects []openapi.RestProject) ([]openapi.RestP
 					Execute()
 				if err != nil {
 					if httpResp != nil {
-						c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+						c.logHTTPResponse(httpResp)
 					}
 					resultsCh <- result{index: j.index, project: &j.project, err: err}
 				} else {
@@ -259,7 +259,7 @@ func (c *Client) UpdateProjects(projects []openapi.RestProject) ([]openapi.RestP
 					RestProject(j.project).
 					Execute()
 				if err != nil && httpResp != nil {
-					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+					c.logHTTPResponse(httpResp)
 				}
 				if err != nil {
 					resultsCh <- result{index: j.index, project: &j.project, err: err}

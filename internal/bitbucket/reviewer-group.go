@@ -23,7 +23,7 @@ func (c *Client) GetReviewerGroups(repos []models.ExtendedRepository) ([]models.
 
 		if err != nil {
 			if httpResp != nil {
-				c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+				c.logHTTPResponse(httpResp)
 			}
 			errs = append(errs, fmt.Sprintf("failed to get reviewer groups for %s/%s: %v",
 				repos[i].ProjectKey, repos[i].RepositorySlug, err))
@@ -86,7 +86,7 @@ func (c *Client) CreateReviewerGroups(repos []models.ExtendedRepository) ([]mode
 					if err != nil {
 						c.logger.Warn("Failed to get user ID", "username", *user.Name, "error", err)
 						if httpResp != nil {
-							c.logger.Debug("HTTP response", "status", httpResp.StatusCode)
+							c.logHTTPResponse(httpResp)
 						}
 						continue
 					}
@@ -142,7 +142,7 @@ func (c *Client) CreateReviewerGroups(repos []models.ExtendedRepository) ([]mode
 					"name", *j.reviewerGroup.Name,
 					"users", j.reviewerGroup.Users)
 				if httpResp != nil {
-					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+					c.logHTTPResponse(httpResp)
 				}
 				errCh <- fmt.Errorf("failed to create reviewer group %s in %s/%s: %w",
 					*j.reviewerGroup.Name, j.repo.ProjectKey, j.repo.RepositorySlug, err)
@@ -251,7 +251,7 @@ func (c *Client) UpdateReviewerGroups(repos []models.ExtendedRepository) ([]mode
 					if err != nil {
 						c.logger.Warn("Failed to get user ID", "username", *user.Name, "error", err)
 						if httpResp != nil {
-							c.logger.Debug("HTTP response", "status", httpResp.StatusCode)
+							c.logHTTPResponse(httpResp)
 						}
 						continue
 					}
@@ -316,7 +316,7 @@ func (c *Client) UpdateReviewerGroups(repos []models.ExtendedRepository) ([]mode
 					"name", groupName,
 					"id", *j.reviewerGroup.Id)
 				if httpResp != nil {
-					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+					c.logHTTPResponse(httpResp)
 				}
 				errCh <- fmt.Errorf("failed to update reviewer group %s (ID: %d) in %s/%s: %w",
 					groupName, *j.reviewerGroup.Id, j.repo.ProjectKey, j.repo.RepositorySlug, err)
@@ -453,7 +453,7 @@ func (c *Client) DeleteReviewerGroups(repos []models.ExtendedRepository) ([]mode
 					"name", groupName,
 					"id", *j.reviewerGroup.Id)
 				if httpResp != nil {
-					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+					c.logHTTPResponse(httpResp)
 				}
 				errCh <- fmt.Errorf("failed to delete reviewer group %s (ID: %d) in %s/%s: %w",
 					groupName, *j.reviewerGroup.Id, j.repo.ProjectKey, j.repo.RepositorySlug, err)

@@ -78,7 +78,7 @@ func (c *Client) getSingleUser(username string) (*openapi.RestApplicationUser, e
 	resp, httpResp, err := c.api.SystemMaintenanceAPI.GetUser(c.authCtx, username).Execute()
 	if err != nil {
 		if httpResp != nil {
-			c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+			c.logHTTPResponse(httpResp)
 		}
 		c.logger.Error("Failed to get user", "username", username, "error", err)
 		return nil, err
@@ -95,7 +95,7 @@ func (c *Client) getAllUsers() ([]openapi.RestApplicationUser, error) {
 	resp, httpResp, err := c.api.PermissionManagementAPI.GetUsers1(c.authCtx).Execute()
 	if err != nil {
 		if httpResp != nil {
-			c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+			c.logHTTPResponse(httpResp)
 		}
 		c.logger.Error("Failed to get all users", "error", err)
 		return []openapi.RestApplicationUser{}, err
@@ -187,7 +187,7 @@ func (c *Client) CreateUsers(users []openapi.RestApplicationUser, passwords []st
 				httpResp, err := req.Execute()
 				if err != nil {
 					if httpResp != nil {
-						c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+						c.logHTTPResponse(httpResp)
 					}
 					resultsCh <- result{index: j.index, user: &j.user, err: err}
 				} else {
@@ -267,7 +267,7 @@ func (c *Client) DeleteUsers(usernames []string) ([]openapi.RestApplicationUser,
 				_, httpResp, err := c.api.PermissionManagementAPI.DeleteUser(c.authCtx).Name(j.username).Execute()
 				if err != nil {
 					if httpResp != nil {
-						c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+						c.logHTTPResponse(httpResp)
 					}
 					resultsCh <- result{index: j.index, user: nil, err: err}
 				} else {
@@ -366,7 +366,7 @@ func (c *Client) UpdateUsers(users []openapi.RestApplicationUser) ([]openapi.Res
 				}).Execute()
 				if err != nil {
 					if httpResp != nil {
-						c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+						c.logHTTPResponse(httpResp)
 					}
 					resultsCh <- result{index: j.index, user: currentUser, err: err}
 				} else {
