@@ -8,13 +8,12 @@ import (
 
 // Config holds global CLI configuration
 type Config struct {
-	BaseURL          string
-	Token            string
-	Username         string
-	Password         string
-	PageSize         int
-	GlobalMaxWorkers int
-	Insecure         bool
+	BaseURL  string
+	Token    string
+	Username string
+	Password string
+	PageSize int
+	Insecure bool
 }
 
 var (
@@ -47,13 +46,12 @@ func LoadConfig() (*Config, error) {
 	insecure := os.Getenv("BITBUCKET_INSECURE") == "true"
 
 	cfg := &Config{
-		BaseURL:          baseURL,
-		Token:            token,
-		Username:         username,
-		Password:         password,
-		PageSize:         pageSize,
-		GlobalMaxWorkers: maxWorkers,
-		Insecure:         insecure,
+		BaseURL:  baseURL,
+		Token:    token,
+		Username: username,
+		Password: password,
+		PageSize: pageSize,
+		Insecure: insecure,
 	}
 	GlobalCfg = cfg
 

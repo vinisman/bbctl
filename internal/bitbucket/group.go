@@ -15,7 +15,7 @@ func (c *Client) GetAllGroups() ([]openapi.RestDetailedGroup, error) {
 	resp, httpResp, err := c.api.PermissionManagementAPI.GetGroups1(c.authCtx).Execute()
 	if err != nil {
 		if httpResp != nil {
-			c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+			c.logHTTPResponse(httpResp)
 		}
 		c.logger.Error("Failed to get all groups", "error", err)
 		return []openapi.RestDetailedGroup{}, err
@@ -106,7 +106,7 @@ func (c *Client) CreateGroups(groups []openapi.RestDetailedGroup) ([]openapi.Res
 				createdGroup, httpResp, err := req.Execute()
 				if err != nil {
 					if httpResp != nil {
-						c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+						c.logHTTPResponse(httpResp)
 					}
 					resultsCh <- result{index: j.index, group: &j.group, err: fmt.Errorf("failed to create group %s: %w", *j.group.Name, err)}
 				} else {
@@ -190,7 +190,7 @@ func (c *Client) DeleteGroups(groupNames []string) ([]openapi.RestDetailedGroup,
 				deletedGroup, httpResp, err := c.api.PermissionManagementAPI.DeleteGroup(c.authCtx).Name(j.groupName).Execute()
 				if err != nil {
 					if httpResp != nil {
-						c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+						c.logHTTPResponse(httpResp)
 					}
 					resultsCh <- result{index: j.index, group: nil, err: fmt.Errorf("failed to delete group %s: %w", j.groupName, err)}
 				} else {

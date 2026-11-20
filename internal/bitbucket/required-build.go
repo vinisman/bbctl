@@ -23,7 +23,9 @@ func (c *Client) CreateRequiredBuilds(repos []models.ExtendedRepository) ([]mode
 	// count the total number
 	var total int
 	for _, r := range repos {
-		total += len(*r.RequiredBuilds)
+		if r.RequiredBuilds != nil {
+			total += len(*r.RequiredBuilds)
+		}
 	}
 
 	jobs := make(chan job, total)
@@ -43,7 +45,7 @@ func (c *Client) CreateRequiredBuilds(repos []models.ExtendedRepository) ([]mode
 				Execute()
 
 			if err != nil && httpResp != nil {
-				c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+				c.logHTTPResponse(httpResp)
 				c.logger.Error("Failed to create required-build",
 					"project", j.repo.ProjectKey,
 					"slug", j.repo.RepositorySlug,
@@ -84,6 +86,9 @@ func (c *Client) CreateRequiredBuilds(repos []models.ExtendedRepository) ([]mode
 
 	// send all jobs to the channel
 	for _, r := range repos {
+		if r.RequiredBuilds == nil {
+			continue
+		}
 		for _, wh := range *r.RequiredBuilds {
 			req := toSetRequest(wh)
 			jobs <- job{repo: r, req: req}
@@ -113,7 +118,7 @@ func (c *Client) CreateRequiredBuilds(repos []models.ExtendedRepository) ([]mode
 		}
 	}
 
-	return createdRepos, nil
+	return createdRepos, firstErr
 }
 
 func (c *Client) UpdateRequiredBuilds(repos []models.ExtendedRepository) ([]models.ExtendedRepository, error) {
@@ -136,7 +141,9 @@ func (c *Client) UpdateRequiredBuilds(repos []models.ExtendedRepository) ([]mode
 	// count the total number
 	var total int
 	for _, r := range repos {
-		total += len(*r.RequiredBuilds)
+		if r.RequiredBuilds != nil {
+			total += len(*r.RequiredBuilds)
+		}
 	}
 
 	jobs := make(chan job, total)
@@ -154,7 +161,7 @@ func (c *Client) UpdateRequiredBuilds(repos []models.ExtendedRepository) ([]mode
 				Execute()
 
 			if err != nil && httpResp != nil {
-				c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+				c.logHTTPResponse(httpResp)
 				if httpResp.StatusCode == 404 {
 					// Skip missing items: treat as no-op
 					c.logger.Info("Required build not found during update, skipping",
@@ -199,6 +206,9 @@ func (c *Client) UpdateRequiredBuilds(repos []models.ExtendedRepository) ([]mode
 
 	// send all jobs to the channel
 	for i, r := range repos {
+		if r.RequiredBuilds == nil {
+			continue
+		}
 		for _, wh := range *r.RequiredBuilds {
 			if wh.Id != nil {
 				req := toSetRequest(wh)
@@ -241,7 +251,9 @@ func (c *Client) DeleteRequiredBuilds(repos []models.ExtendedRepository) error {
 	// count the total number
 	var total int
 	for _, r := range repos {
-		total += len(*r.RequiredBuilds)
+		if r.RequiredBuilds != nil {
+			total += len(*r.RequiredBuilds)
+		}
 	}
 
 	jobs := make(chan job, total)
@@ -258,7 +270,7 @@ func (c *Client) DeleteRequiredBuilds(repos []models.ExtendedRepository) error {
 
 			if err != nil {
 				if httpResp != nil {
-					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+					c.logHTTPResponse(httpResp)
 					if httpResp.StatusCode == 404 {
 						// Skip missing items: treat as no-op
 						c.logger.Info("Required build was already absent (404), skipping",
@@ -292,6 +304,9 @@ func (c *Client) DeleteRequiredBuilds(repos []models.ExtendedRepository) error {
 
 	// send all jobs to the channel
 	for _, r := range repos {
+		if r.RequiredBuilds == nil {
+			continue
+		}
 		for _, wh := range *r.RequiredBuilds {
 			if wh.Id != nil {
 				jobs <- job{repo: r, id: *wh.Id}
@@ -309,7 +324,7 @@ func (c *Client) DeleteRequiredBuilds(repos []models.ExtendedRepository) error {
 		errs = append(errs, e.Error())
 	}
 	if len(errs) > 0 {
-		return fmt.Errorf("errors occurred deleting required builds")
+		return fmt.Errorf("errors occurred deleting required builds: %s", strings.Join(errs, "; "))
 	}
 
 	return nil
@@ -352,7 +367,7 @@ func (c *Client) GetRequiredBuilds(repos []models.ExtendedRepository) ([]models.
 				Execute()
 			if err != nil {
 				if httpResp != nil {
-					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+					c.logHTTPResponse(httpResp)
 				}
 				errCh <- fmt.Errorf("failed to get required builds for %s/%s: %w", j.repo.ProjectKey, j.repo.RepositorySlug, err)
 				continue

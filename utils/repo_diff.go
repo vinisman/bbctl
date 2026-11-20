@@ -136,14 +136,13 @@ func DiffRepoItems[T any, ID comparable](sourceRepo, targetRepo models.ExtendedR
 
 	// create: items in target without ID + IDs present in target but not in source
 	for _, it := range tgtItems {
-		if _, ok := ops.GetID(it); !ok {
+		id, ok := ops.GetID(it)
+		if !ok {
 			create = append(create, it)
 			continue
 		}
-		if id, _ := ops.GetID(it); id != *new(ID) { // id exists (already ensured)
-			if _, ok := srcByID[id]; !ok {
-				create = append(create, it)
-			}
+		if _, inSource := srcByID[id]; !inSource {
+			create = append(create, it)
 		}
 	}
 
@@ -286,7 +285,7 @@ func ReadRollbackPlan(path string) (*models.RollbackPlan, error) {
 	if strings.Contains(cleanPath, "..") {
 		return nil, fmt.Errorf("invalid file path: directory traversal detected")
 	}
-	
+
 	raw, err := os.ReadFile(cleanPath)
 	if err != nil {
 		return nil, err

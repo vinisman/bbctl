@@ -1,14 +1,13 @@
 package bitbucket
 
 import (
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/vinisman/bbctl/internal/config"
 	"github.com/vinisman/bbctl/internal/models"
@@ -31,7 +30,7 @@ func (c *Client) GetAllReposForProject(projectKey string, options models.Reposit
 			Limit(float32(c.config.PageSize)).
 			Execute()
 		if err != nil && httpResp != nil {
-			c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+			c.logHTTPResponse(httpResp)
 			httpResp.Body.Close()
 		}
 		if err != nil {
@@ -125,7 +124,7 @@ func (c *Client) GetReposBySlugs(projectKey string, slugs []string, options mode
 				// Always fetch repository to verify it exists and belongs to the correct project.
 				resp, httpResp, err := c.api.ProjectAPI.GetRepository(c.authCtx, projectKey, slug).Execute()
 				if err != nil && httpResp != nil {
-					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+					c.logHTTPResponse(httpResp)
 				}
 				if err != nil {
 					c.logger.Error("Error fetching repository", "project", projectKey, "slug", slug, "error", err)
@@ -249,7 +248,7 @@ func (c *Client) GetDefaultBranch(projectKey, repoSlug string) (string, error) {
 		GetDefaultBranch2(c.authCtx, projectKey, repoSlug).
 		Execute()
 	if err != nil && httpResp != nil {
-		c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+		c.logHTTPResponse(httpResp)
 	}
 	if err != nil {
 		c.logger.Error("Failed to get default branch",
@@ -271,10 +270,20 @@ func (c *Client) GetManifest(projectKey, repoSlug, filePath string) (map[string]
 	}
 
 	baseURL := c.api.GetConfig().Servers[0].URL
-	url := fmt.Sprintf("%s/api/1.0/projects/%s/repos/%s/raw/%s",
-		strings.TrimRight(baseURL, "/"), projectKey, repoSlug, filePath)
+	// Escape every path segment so user-provided values cannot alter the
+	// request path (e.g. '?', '#', spaces, '..' traversal).
+	segments := strings.Split(filePath, "/")
+	for i, seg := range segments {
+		if seg == ".." {
+			return nil, fmt.Errorf("invalid file path %q: '..' segment is not allowed", filePath)
+		}
+		segments[i] = url.PathEscape(seg)
+	}
+	rawURL := fmt.Sprintf("%s/api/1.0/projects/%s/repos/%s/raw/%s",
+		strings.TrimRight(baseURL, "/"), url.PathEscape(projectKey), url.PathEscape(repoSlug),
+		strings.Join(segments, "/"))
 
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest("GET", rawURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -284,19 +293,7 @@ func (c *Client) GetManifest(projectKey, repoSlug, filePath string) (map[string]
 		req.Header.Set(k, v)
 	}
 
-	// Ensure httpClient is set and has a reasonable timeout
-	if c.api.GetConfig().HTTPClient == nil {
-		timeout := time.Duration(15 * 1e9) // 15 seconds
-		httpClient := &http.Client{Timeout: timeout}
-		if config.GlobalCfg.Insecure {
-			transport := &http.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-			}
-			httpClient.Transport = transport
-		}
-		c.api.GetConfig().HTTPClient = httpClient
-	}
-
+	// HTTPClient (timeout, insecure TLS) is configured once in NewClient.
 	resp, err := c.api.GetConfig().HTTPClient.Do(req)
 	if err != nil {
 		c.logger.Error("Failed to fetch file",
@@ -354,7 +351,7 @@ func (c *Client) DeleteRepos(refs []models.ExtendedRepository) error {
 			for ref := range jobsCh {
 				httpResp, err := c.api.ProjectAPI.DeleteRepository(c.authCtx, ref.ProjectKey, ref.RepositorySlug).Execute()
 				if err != nil && httpResp != nil {
-					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+					c.logHTTPResponse(httpResp)
 				}
 				if err != nil {
 					resultsCh <- result{project: ref.ProjectKey, slug: ref.RepositorySlug, err: err}
@@ -403,31 +400,46 @@ func (c *Client) CreateRepos(repos []models.ExtendedRepository) ([]models.Extend
 	}
 
 	resultsCh := make(chan result, len(repos))
+	jobsCh := make(chan int, len(repos))
+
+	maxWorkers := config.GlobalMaxWorkers
+	if maxWorkers < 1 {
+		maxWorkers = 1
+	}
+
+	// Worker pool: bounded parallelism instead of one goroutine per repository
+	for range maxWorkers {
+		go func() {
+			for index := range jobsCh {
+				repo := repos[index]
+				// Validate required fields
+				if repo.RestRepository == nil || repo.RestRepository.Name == nil || repo.ProjectKey == "" {
+					resultsCh <- result{index: index, repo: repo, err: fmt.Errorf("name and projectKey are required")}
+					continue
+				}
+
+				created, httpResp, err := c.api.ProjectAPI.CreateRepository(c.authCtx, repo.ProjectKey).
+					RestRepository(*repo.RestRepository).
+					Execute()
+				if err != nil && httpResp != nil {
+					c.logHTTPResponse(httpResp)
+				}
+				if err != nil {
+					resultsCh <- result{index: index, repo: repo, err: err}
+				} else {
+					// Update the repository with created data
+					repo.RestRepository = created
+					resultsCh <- result{index: index, repo: repo}
+				}
+			}
+		}()
+	}
 
 	// Send jobs
-	for i, r := range repos {
-		go func(index int, repo models.ExtendedRepository) {
-			// Validate required fields
-			if repo.RestRepository.Name == nil || repo.ProjectKey == "" {
-				resultsCh <- result{index: index, repo: repo, err: fmt.Errorf("name and projectKey are required")}
-				return
-			}
-
-			created, httpResp, err := c.api.ProjectAPI.CreateRepository(c.authCtx, repo.ProjectKey).
-				RestRepository(*repo.RestRepository).
-				Execute()
-			if err != nil && httpResp != nil {
-				c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
-			}
-			if err != nil {
-				resultsCh <- result{index: index, repo: repo, err: err}
-			} else {
-				// Update the repository with created data
-				repo.RestRepository = created
-				resultsCh <- result{index: index, repo: repo}
-			}
-		}(i, r)
+	for i := range repos {
+		jobsCh <- i
 	}
+	close(jobsCh)
 
 	// Collect results
 	createdRepos := make([]models.ExtendedRepository, len(repos))
@@ -486,7 +498,7 @@ func (c *Client) UpdateRepos(repos []models.ExtendedRepository) ([]models.Extend
 					RestRepository(*j.repo.RestRepository).
 					Execute()
 				if err != nil && httpResp != nil {
-					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+					c.logHTTPResponse(httpResp)
 				}
 				if err != nil {
 					resultsCh <- result{index: j.index, repo: j.repo, err: err}
@@ -568,7 +580,7 @@ func (c *Client) ForkRepos(repos []models.ExtendedRepository) ([]models.Extended
 					RestRepository(*j.repo.RestRepository).
 					Execute()
 				if err != nil && httpResp != nil {
-					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+					c.logHTTPResponse(httpResp)
 				}
 				if err != nil {
 					resultsCh <- result{index: j.index, repo: j.repo, err: err}
@@ -643,13 +655,16 @@ func (c *Client) enrichRepository(r models.ExtendedRepository, projectKey string
 			return r, fmt.Errorf("webhooks: %w", err)
 		}
 	}
-	// Required builds only
+	// Required builds only. Fail hard like webhooks: silently omitting this
+	// section could later be interpreted as "no required builds" by diff/apply
+	// and lead to unintended deletions.
 	if options.RequiredBuilds && r.RepositorySlug != "" {
 		rbList, err := c.GetRequiredBuilds([]models.ExtendedRepository{r})
-		if err == nil && len(rbList) > 0 {
+		if err != nil {
+			return r, fmt.Errorf("requiredBuilds: %w", err)
+		}
+		if len(rbList) > 0 {
 			r.RequiredBuilds = rbList[0].RequiredBuilds
-		} else if err != nil {
-			c.logger.Warn("Failed fetching required builds", "project", projectKey, "slug", r.RepositorySlug, "error", err)
 		}
 	}
 	// Get manifest content
@@ -700,7 +715,7 @@ func (c *Client) GetBranchPermissions(repos []models.ExtendedRepository) ([]mode
 			GetRestrictions1(c.authCtx, repos[i].ProjectKey, repos[i].RepositorySlug).
 			Execute()
 		if err != nil && httpResp != nil {
-			c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+			c.logHTTPResponse(httpResp)
 		}
 		if err != nil {
 			errs = append(errs, fmt.Sprintf("failed to get branch permissions for %s/%s: %v", repos[i].ProjectKey, repos[i].RepositorySlug, err))
@@ -711,7 +726,7 @@ func (c *Client) GetBranchPermissions(repos []models.ExtendedRepository) ([]mode
 	}
 
 	if len(errs) > 0 {
-		return nil, fmt.Errorf("errors occurred fetching branch permissions: %s", strings.Join(errs, "; "))
+		return repos, fmt.Errorf("errors occurred fetching branch permissions: %s", strings.Join(errs, "; "))
 	}
 
 	return repos, nil
@@ -777,7 +792,7 @@ func (c *Client) CreateBranchPermissions(repos []models.ExtendedRepository) ([]m
 					"repo", j.repo.RepositorySlug,
 					"type", utils.SafeValue(j.permission.Type))
 				if httpResp != nil {
-					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+					c.logHTTPResponse(httpResp)
 				}
 				errCh <- err
 				continue
@@ -909,7 +924,7 @@ func (c *Client) UpdateBranchPermissions(repos []models.ExtendedRepository) ([]m
 
 			if err != nil {
 				if httpResp != nil {
-					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+					c.logHTTPResponse(httpResp)
 					if httpResp.StatusCode == 404 {
 						c.logger.Info("Permission not found during update, skipping",
 							"project", j.repo.ProjectKey,
@@ -1027,7 +1042,7 @@ func (c *Client) DeleteBranchPermissions(repos []models.ExtendedRepository) erro
 				Execute()
 			if err != nil {
 				if httpResp != nil {
-					c.logger.Debug("HTTP response", "status", httpResp.StatusCode, "body", httpResp.Body)
+					c.logHTTPResponse(httpResp)
 					if httpResp.StatusCode == 404 {
 						c.logger.Info("Branch permission was already absent (404), skipping",
 							"project", j.repo.ProjectKey,

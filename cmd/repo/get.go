@@ -160,18 +160,36 @@ Only one of these options should be used at a time.`,
 					return err
 				}
 				var inputErrors []error
+
+				// Group by project: one batched API call per project instead
+				// of a sequential round-trip per repository (N+1 requests).
+				slugsByProject := make(map[string][]string, len(parsed.Repositories))
 				for _, repo := range parsed.Repositories {
-					r, err := client.GetReposBySlugs(repo.ProjectKey, []string{repo.RepositorySlug}, options)
+					slugsByProject[repo.ProjectKey] = append(slugsByProject[repo.ProjectKey], repo.RepositorySlug)
+				}
+
+				fetched := make(map[string]models.ExtendedRepository, len(parsed.Repositories))
+				for project, slugs := range slugsByProject {
+					batch, err := client.GetReposBySlugs(project, slugs, options)
 					if err != nil {
-						client.Logger.Error("Skipping repository due to error",
-							"project", repo.ProjectKey,
-							"slug", repo.RepositorySlug,
+						client.Logger.Error("Skipping repositories due to error",
+							"project", project,
 							"error", err)
 						inputErrors = append(inputErrors, err)
 						continue
 					}
-					repos = append(repos, r...)
+					for _, r := range batch {
+						fetched[r.ProjectKey+"/"+r.RepositorySlug] = r
+					}
 				}
+
+				// Keep the original input file order (and duplicates)
+				for _, repo := range parsed.Repositories {
+					if r, ok := fetched[repo.ProjectKey+"/"+repo.RepositorySlug]; ok {
+						repos = append(repos, r)
+					}
+				}
+
 				if len(repos) == 0 && len(inputErrors) > 0 {
 					return fmt.Errorf("no repositories found, %d error(s) occurred", len(inputErrors))
 				}
