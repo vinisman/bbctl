@@ -79,8 +79,8 @@ func NewRootCmd() *cobra.Command {
 				c.Insecure = flagInsecure
 			}
 
-			// Validate authentication
-			if c.Token == "" && (c.Username == "" || c.Password == "") {
+			// Validate authentication (offline commands don't need credentials)
+			if cmd.Annotations["offline"] != "true" && c.Token == "" && (c.Username == "" || c.Password == "") {
 				return fmt.Errorf("either token or username/password must be provided")
 			}
 
