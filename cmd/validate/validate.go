@@ -44,6 +44,8 @@ Examples:
   bbctl validate --schema schema.json --data data.json -o json`,
 		RunE:         runValidate,
 		SilenceUsage: true, // Don't show usage on validation error
+		// Local file validation doesn't need Bitbucket credentials (issue #89)
+		Annotations: map[string]string{"offline": "true"},
 	}
 
 	cmd.Flags().StringVar(&flagSchema, "schema", "", "Path to JSON Schema file (or '-' for stdin)")
