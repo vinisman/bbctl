@@ -25,6 +25,8 @@ type ExtendedRepository struct {
 	ConfigFiles        *map[string]any                       `json:"configFiles,omitempty" yaml:"configFiles,omitempty"`
 	RequiredBuilds     *[]openapi.RestRequiredBuildCondition `json:"requiredBuilds,omitempty" yaml:"requiredBuilds,omitempty"`
 	ReviewerGroups     *[]openapi.RestReviewerGroup          `json:"reviewerGroups,omitempty" yaml:"reviewerGroups,omitempty"`
+	MergeChecks        *[]ScriptRunnerMergeCheck             `json:"mergeChecks,omitempty" yaml:"mergeChecks,omitempty"`
+	DefaultTasks       *[]DefaultTask                        `json:"defaultTasks,omitempty" yaml:"defaultTasks,omitempty"`
 	Workzone           *WorkzoneData                         `json:"workzone,omitempty" yaml:"workzone,omitempty"`
 }
 
