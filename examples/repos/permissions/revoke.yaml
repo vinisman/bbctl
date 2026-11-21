@@ -1,0 +1,11 @@
+repositories:
+  - projectKey: DEMO
+    repositorySlug: app-web
+    users:
+      - name: jdoe
+    groups:
+      - name: developers
+  - projectKey: OPS
+    repositorySlug: monitoring
+    groups:
+      - name: operators

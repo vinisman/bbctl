@@ -1,0 +1,7 @@
+repositories:
+  - projectKey: DEMO
+    repositorySlug: app-web
+  - projectKey: DEMO
+    repositorySlug: app-api
+  - projectKey: OPS
+    repositorySlug: monitoring

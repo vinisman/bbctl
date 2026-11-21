@@ -1,6 +1,9 @@
 package models
 
 import (
+	"fmt"
+	"strings"
+
 	openapi "github.com/vinisman/bitbucket-sdk-go/openapi"
 	workzone "github.com/vinisman/workzone-sdk-go/client"
 )
@@ -56,6 +59,64 @@ type ProjectYaml struct {
 	Projects []openapi.RestProject `json:"projects,omitempty" yaml:"projects,omitempty"`
 }
 
+// Permission levels accepted by Bitbucket for project and repository scopes.
+var (
+	ProjectPermissionLevels    = []string{"PROJECT_READ", "PROJECT_WRITE", "PROJECT_ADMIN"}
+	RepositoryPermissionLevels = []string{"REPO_READ", "REPO_WRITE", "REPO_ADMIN"}
+)
+
+// NormalizePermission validates a permission level against the allowed list and
+// returns it in upper case. Empty levels are rejected.
+func NormalizePermission(level string, allowed []string) (string, error) {
+	lvl := strings.ToUpper(strings.TrimSpace(level))
+	for _, a := range allowed {
+		if lvl == a {
+			return lvl, nil
+		}
+	}
+	return "", fmt.Errorf("invalid permission %q, allowed values: %s", level, strings.Join(allowed, ", "))
+}
+
+// PermissionEntry describes a permission level granted to a user or group.
+type PermissionEntry struct {
+	Name       string `json:"name" yaml:"name"`
+	Permission string `json:"permission,omitempty" yaml:"permission,omitempty"`
+}
+
+// ProjectPermissions groups permission entries for a single project.
+type ProjectPermissions struct {
+	ProjectKey string            `json:"projectKey" yaml:"projectKey"`
+	Users      []PermissionEntry `json:"users,omitempty" yaml:"users,omitempty"`
+	Groups     []PermissionEntry `json:"groups,omitempty" yaml:"groups,omitempty"`
+}
+
+// ProjectPermissionYaml is the input format for project permission commands.
+type ProjectPermissionYaml struct {
+	Projects []ProjectPermissions `json:"projects" yaml:"projects"`
+}
+
+// RepositoryPermissions groups permission entries for a single repository.
+type RepositoryPermissions struct {
+	ProjectKey     string            `json:"projectKey" yaml:"projectKey"`
+	RepositorySlug string            `json:"repositorySlug" yaml:"repositorySlug"`
+	Users          []PermissionEntry `json:"users,omitempty" yaml:"users,omitempty"`
+	Groups         []PermissionEntry `json:"groups,omitempty" yaml:"groups,omitempty"`
+}
+
+// RepositoryPermissionYaml is the input format for repository permission commands.
+type RepositoryPermissionYaml struct {
+	Repositories []RepositoryPermissions `json:"repositories" yaml:"repositories"`
+}
+
+// PermissionRow is a flattened permission record used for output.
+type PermissionRow struct {
+	ProjectKey     string `json:"projectKey" yaml:"projectKey"`
+	RepositorySlug string `json:"repositorySlug,omitempty" yaml:"repositorySlug,omitempty"`
+	Type           string `json:"type" yaml:"type"`
+	Name           string `json:"name" yaml:"name"`
+	Permission     string `json:"permission" yaml:"permission"`
+}
+
 // User represents a user for YAML parsing (with string fields)
 type User struct {
 	Name         string `json:"name" yaml:"name"`
@@ -98,8 +159,8 @@ type RepoDiff struct {
 // Uses RestRefRestrictionCreate which accepts users as strings
 type RepositoryYamlInput struct {
 	Repositories []struct {
-		ProjectKey        string                        `json:"projectKey" yaml:"projectKey"`
-		RepositorySlug    string                        `json:"repositorySlug" yaml:"repositorySlug"`
+		ProjectKey        string                              `json:"projectKey" yaml:"projectKey"`
+		RepositorySlug    string                              `json:"repositorySlug" yaml:"repositorySlug"`
 		BranchPermissions *[]openapi.RestRefRestrictionCreate `json:"branchPermissions,omitempty" yaml:"branchPermissions,omitempty"`
 	} `json:"repositories" yaml:"repositories"`
 }

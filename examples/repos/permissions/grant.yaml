@@ -1,0 +1,18 @@
+repositories:
+  - projectKey: DEMO
+    repositorySlug: app-web
+    users:
+      - name: jdoe
+        permission: REPO_READ
+      - name: asmith
+        permission: REPO_WRITE
+    groups:
+      - name: developers
+        permission: REPO_WRITE
+      - name: repo-admins
+        permission: REPO_ADMIN
+  - projectKey: OPS
+    repositorySlug: monitoring
+    groups:
+      - name: operators
+        permission: REPO_READ

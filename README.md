@@ -32,6 +32,10 @@ BITBUCKET_PAGE_SIZE=50
 - **Delete** existing projects
 - **Update** project information (with optional YAML/JSON output)
 - **Retrieve basic info** about projects (plain/YAML/JSON formats)
+- **Project permissions management**:
+  - **Get**: Retrieve users and groups with project permissions
+  - **Grant**: Grant or update project permissions for users and groups
+  - **Revoke**: Revoke all project permissions for users and groups
 
 ### For repositories
 - **Create** new repositories
@@ -51,6 +55,10 @@ BITBUCKET_PAGE_SIZE=50
   - **Create**: Add new branch restrictions (push, pull-request-only, delete-branch, etc.)
   - **Update**: Modify existing branch restrictions
   - **Delete**: Remove branch restrictions by ID
+- **Repository permissions management**:
+  - **Get**: Retrieve users and groups with repository permissions
+  - **Grant**: Grant or update repository permissions for users and groups
+  - **Revoke**: Revoke all repository permissions for users and groups
 - **Workzone plugin management** for repositories:
   - **Properties**: Repository workflow properties
   - **Reviewers**: Branch reviewers list
@@ -586,6 +594,169 @@ repositories:
 - **Permission types**: `push`, `pull-request-only`, `delete-branch`, `merge-branch`, etc.
 - **Parallel processing**: All operations support parallel processing when working with multiple repositories
 - **Output formats**: All commands support `plain`, `yaml`, and `json` output formats
+
+## Permissions Management Examples
+
+bbctl can read and manage access permissions at two levels:
+
+| Level | Command | Permission levels |
+|---|---|---|
+| Project | `bbctl project permission` | `PROJECT_READ`, `PROJECT_WRITE`, `PROJECT_ADMIN` |
+| Repository | `bbctl repo permission` | `REPO_READ`, `REPO_WRITE`, `REPO_ADMIN` |
+
+Both levels support users and groups, and all commands accept either flags or a YAML/JSON file (`-i`, `-` for stdin).
+
+### Flags
+
+| Flag | Commands | Description |
+|---|---|---|
+| `-k, --projectKey` | `project permission *` | Project keys, comma-separated |
+| `-s, --repositorySlug` | `repo permission *` | `<projectKey>/<repositorySlug>`, comma-separated |
+| `--user` | `grant`, `revoke` | Usernames, comma-separated |
+| `--group` | `grant`, `revoke` | Group names, comma-separated |
+| `--permission` | `grant` | Permission level (required) |
+| `-i, --input` | all | YAML/JSON file or `-` for stdin |
+| `-o, --output` | all | `plain` (default), `yaml`, `json` |
+
+### Get permissions
+
+```bash
+# Project permissions for one or more projects
+$ bbctl project permission get -k DEMO,OPS
+Projectkey  Type   Name         Permission
+DEMO        user   admin        PROJECT_ADMIN
+DEMO        group  developers   PROJECT_READ
+OPS         group  operators    PROJECT_READ
+
+# Repository permissions
+$ bbctl repo permission get -s DEMO/app-web,DEMO/app-api
+Projectkey  Repositoryslug  Type  Name  Permission
+DEMO        app-web         user  jdoe  REPO_READ
+
+# JSON output
+$ bbctl repo permission get -s DEMO/app-web -o json
+{
+  "permissions": [
+    {
+      "projectKey": "DEMO",
+      "repositorySlug": "app-web",
+      "type": "user",
+      "name": "jdoe",
+      "permission": "REPO_READ"
+    }
+  ]
+}
+
+# From a file with a list of scopes
+$ bbctl project permission get -i examples/projects/permissions/get.yaml -o yaml
+$ bbctl repo permission get -i examples/repos/permissions/get.yaml -o yaml
+```
+
+Plain output columns: project level — `projectKey,type,name,permission`; repository level — `projectKey,repositorySlug,type,name,permission`.
+
+### Grant permissions
+
+```bash
+# Project level: one permission for all listed users/groups
+$ bbctl project permission grant -k DEMO \
+    --user jdoe,asmith --group developers --permission PROJECT_WRITE
+
+# Repository level
+$ bbctl repo permission grant -s DEMO/app-web \
+    --user jdoe --group developers --permission REPO_WRITE
+
+# Multiple projects/repositories at once
+$ bbctl project permission grant -k DEMO,OPS --group operators --permission PROJECT_READ
+$ bbctl repo permission grant -s DEMO/app-web,DEMO/app-api --user jdoe --permission REPO_WRITE
+
+# From a YAML file (different permission per subject)
+$ bbctl project permission grant -i examples/projects/permissions/grant.yaml
+$ bbctl repo permission grant -i examples/repos/permissions/grant.yaml
+
+# From a JSON file
+$ bbctl repo permission grant -i examples/repos/permissions/grant.json
+
+# From stdin
+$ cat examples/repos/permissions/grant.yaml | bbctl repo permission grant -i -
+```
+
+Example YAML for repository permissions (`examples/repos/permissions/grant.yaml`):
+
+```yaml
+repositories:
+  - projectKey: DEMO
+    repositorySlug: app-web
+    users:
+      - name: jdoe
+        permission: REPO_READ
+    groups:
+      - name: developers
+        permission: REPO_WRITE
+```
+
+Example YAML for project permissions (`examples/projects/permissions/grant.yaml`):
+
+```yaml
+projects:
+  - projectKey: DEMO
+    users:
+      - name: jdoe
+        permission: PROJECT_READ
+    groups:
+      - name: developers
+        permission: PROJECT_WRITE
+```
+
+### Revoke permissions
+
+Revoking removes all permissions of the subject at that scope, so `--permission` is not required.
+
+```bash
+$ bbctl project permission revoke -k DEMO --user jdoe --group developers
+$ bbctl repo permission revoke -s DEMO/app-web --user jdoe
+
+# Multiple repositories from a file
+$ bbctl repo permission revoke -i examples/repos/permissions/revoke-multiple.yaml
+```
+
+### Example files
+
+| File | Purpose |
+|---|---|
+| `examples/projects/permissions/get.yaml` | Projects to list permissions for |
+| `examples/projects/permissions/grant.yaml` | Users/groups with permission levels (YAML) |
+| `examples/projects/permissions/grant.json` | Same as above in JSON |
+| `examples/projects/permissions/revoke.yaml` | Subjects to revoke project permissions from |
+| `examples/repos/permissions/get.yaml` | Repositories to list permissions for |
+| `examples/repos/permissions/grant.yaml` | Users/groups with permission levels (YAML) |
+| `examples/repos/permissions/grant.json` | Same as above in JSON |
+| `examples/repos/permissions/revoke.yaml` | Subjects to revoke repository permissions from |
+| `examples/repos/permissions/revoke-multiple.yaml` | Revoke across several repositories |
+
+### Notes about Permissions
+
+- **Scopes**: project permissions apply to every repository in the project; repository permissions apply to a single repository
+- **Subjects**: both users and groups are supported (`--user`, `--group`, comma-separated)
+- **Per-subject levels**: with `-i` every user/group can have its own `permission`; with flags one `--permission` applies to all listed subjects
+- **Input validation**: permission levels are validated before any API call (`PROJECT_*` for projects, `REPO_*` for repositories); lowercase values are normalized to upper case
+- **Revoke**: the `permission` field is ignored on revoke — all permissions of the subject at that scope are removed
+- **Parallelism**: multiple projects/repositories are processed concurrently through the worker pool (`--max-workers`, default 5); GET keeps the input order in the output
+- **Batching**: repository grants for subjects with the same permission are sent in a single request (the repository API accepts multiple names)
+- **Error handling**: a failure in one scope/subject does not stop the others; all errors are collected and reported together
+- **Output formats**: All commands support `plain`, `yaml`, and `json` output formats
+- **Exit codes**: `grant`/`revoke` log API errors and exit with code 0, consistent with other write commands
+
+### Performance and memory checks
+
+```bash
+# Throughput and allocations (in-process transport, no sockets)
+go test ./internal/bitbucket -run '^$' -bench 'Permission' -benchmem
+
+# Goroutine/heap leak check (200 full cycles)
+go test ./internal/bitbucket -run TestPermissionOperations_NoLeaks -count=5 -race -v
+```
+
+Reference numbers on Apple M1 Pro (10 scopes, 5 workers): ~100–135 µs/op, ~117–150 KB/op, ~1.5–1.8 K allocs/op; heap delta after 200 cycles stays within a few hundred KB and goroutines return to baseline.
 
 ### GitOps: diff/apply for required-builds
 Compare two YAML/JSON files (source = current state, target = desired state), get a structured diff (create/update/delete), optionally apply to Bitbucket, save rollback plan, and export results.
