@@ -19,6 +19,9 @@ func batchOperation(
 	}
 
 	maxWorkers := config.GlobalMaxWorkers
+	if maxWorkers < 1 {
+		maxWorkers = 1
+	}
 	sem := make(chan struct{}, maxWorkers)
 	var wg sync.WaitGroup
 	var mu sync.Mutex
@@ -59,6 +62,9 @@ func batchGetOperation[T any](
 	}
 
 	maxWorkers := config.GlobalMaxWorkers
+	if maxWorkers < 1 {
+		maxWorkers = 1
+	}
 	sem := make(chan struct{}, maxWorkers)
 	var wg sync.WaitGroup
 	var mu sync.Mutex

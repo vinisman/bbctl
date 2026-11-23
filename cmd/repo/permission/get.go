@@ -58,8 +58,12 @@ func GetPermissionCmd() *cobra.Command {
 
 			rows, err := client.GetRepositoryPermissions(repos)
 			if err != nil {
+				// Print whatever was fetched before the error so partial
+				// results are not lost; the error goes to the log.
 				client.Logger.Error(err.Error())
-				return nil
+				if len(rows) == 0 {
+					return nil
+				}
 			}
 
 			return utils.PrintStructured("permissions", rows, output, "projectKey,repositorySlug,type,name,permission")

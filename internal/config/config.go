@@ -31,9 +31,11 @@ func LoadConfig() (*Config, error) {
 		}
 	}
 
+	// maxWorkers must stay >= 1: worker pools and semaphores built on
+	// GlobalMaxWorkers deadlock or spawn zero workers otherwise.
 	maxWorkers := 5
 	if val := os.Getenv("BITBUCKET_MAX_WORKERS"); val != "" {
-		if mw, err := strconv.Atoi(val); err == nil {
+		if mw, err := strconv.Atoi(val); err == nil && mw > 0 {
 			maxWorkers = mw
 		}
 	}

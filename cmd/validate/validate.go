@@ -109,27 +109,27 @@ func runValidate(cmd *cobra.Command, args []string) error {
 			// Handle file:// URIs (may have host on Windows)
 			path = uri.Path
 		}
-		
+
 		// Resolve relative paths against the base schema directory
 		if !filepath.IsAbs(path) && flagSchema != "-" && flagSchema != "" {
 			baseDir := filepath.Dir(flagSchema)
 			path = filepath.Join(baseDir, path)
 		}
-		
+
 		// Clean the path to prevent directory traversal
 		path = filepath.Clean(path)
-		
+
 		// Read and parse the schema file
 		data, err := os.ReadFile(path)
 		if err != nil {
 			return nil, fmt.Errorf("loading %s: %w", path, err)
 		}
-		
+
 		var schema jsonschema.Schema
 		if err := json.Unmarshal(data, &schema); err != nil {
 			return nil, fmt.Errorf("parsing %s: %w", path, err)
 		}
-		
+
 		return &schema, nil
 	}
 
@@ -261,11 +261,12 @@ func formatErrorMessage(errStr string) string {
 			// Format: "value does not equal expected"
 			if idx2 := strings.Index(valueAndExpected, " does not equal "); idx2 >= 0 {
 				value := valueAndExpected[:idx2]
-				expected := strings.TrimSpace(valueAndExpected[idx2+18:])
+				expected := strings.TrimSpace(valueAndExpected[idx2+len(" does not equal "):])
 				path = strings.TrimPrefix(path, "/properties/")
 				path = strings.TrimPrefix(path, "/definitions/")
 				path = strings.ReplaceAll(path, "/properties/", ".")
 				path = strings.ReplaceAll(path, "/definitions/", "")
+				path = strings.TrimSuffix(path, ":")
 				return fmt.Sprintf("%s: must be %q (got %q)", path, expected, value)
 			}
 		}
@@ -285,14 +286,14 @@ func formatErrorMessage(errStr string) string {
 	if strings.Contains(lastPart, "minimum:") || strings.Contains(lastPart, "maximum:") {
 		if idx := strings.Index(lastPart, "minimum:"); idx >= 0 {
 			path := strings.TrimSpace(lastPart[:idx])
-			details := strings.TrimSpace(lastPart[idx+10:])
+			details := strings.TrimSpace(lastPart[idx+len("minimum:"):])
 			path = cleanPath(path)
 			path = strings.TrimSuffix(path, ":")
 			return path + ": value below minimum (" + details + ")"
 		}
 		if idx := strings.Index(lastPart, "maximum:"); idx >= 0 {
 			path := strings.TrimSpace(lastPart[:idx])
-			details := strings.TrimSpace(lastPart[idx+9:])
+			details := strings.TrimSpace(lastPart[idx+len("maximum:"):])
 			path = cleanPath(path)
 			path = strings.TrimSuffix(path, ":")
 			return path + ": value above maximum (" + details + ")"
@@ -307,7 +308,7 @@ func formatErrorMessage(errStr string) string {
 			path = cleanPath(path)
 			// Remove trailing colon from path if present
 			path = strings.TrimSuffix(path, ":")
-			
+
 			// Extract value and allowed values from details
 			// Format: "value does not equal any of: [opt1 opt2 opt3]"
 			if idx2 := strings.Index(details, " does not equal any of: ["); idx2 >= 0 {
@@ -351,6 +352,7 @@ func formatErrorMessage(errStr string) string {
 
 // cleanPath converts JSON Schema paths to user-friendly dot notation
 func cleanPath(path string) string {
+	path = strings.TrimSpace(path)
 	path = strings.TrimPrefix(path, "/properties/")
 	path = strings.TrimPrefix(path, "/definitions/")
 	path = strings.ReplaceAll(path, "/properties/", ".")
@@ -441,6 +443,10 @@ func extractCurrentValue(errStr, path string) string {
 // Component.type -> spec.component.type
 // Build.tool -> spec.component.build.tool
 func schemaPathToDataPath(path string) string {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return ""
+	}
 	parts := strings.Split(path, ".")
 	if len(parts) == 0 {
 		return ""
@@ -522,26 +528,21 @@ func findAllowedValues(schema map[string]any, path string) []string {
 		return nil
 	}
 
-	// Extract oneOf or enum values
-	if oneOf, ok := current.([]any); ok {
+	// Extract oneOf or enum values. Both come back as []any: oneOf entries
+	// are objects with "const", enum entries are plain strings. Handle both
+	// in one pass — a separate enum branch would be unreachable.
+	if list, ok := current.([]any); ok {
 		var values []string
-		for _, item := range oneOf {
-			if itemMap, ok := item.(map[string]any); ok {
-				if constVal, exists := itemMap["const"]; exists {
+		for _, item := range list {
+			switch v := item.(type) {
+			case string:
+				values = append(values, v)
+			case map[string]any:
+				if constVal, exists := v["const"]; exists {
 					if strVal, ok := constVal.(string); ok {
 						values = append(values, strVal)
 					}
 				}
-			}
-		}
-		return values
-	}
-
-	if enum, ok := current.([]any); ok {
-		var values []string
-		for _, item := range enum {
-			if strVal, ok := item.(string); ok {
-				values = append(values, strVal)
 			}
 		}
 		return values
