@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Build, Vet & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Check formatting
+        run: |
+          # Files below are legacy code that is intentionally left unformatted.
+          # Do not add new exceptions: run `gofmt -w` on changed files instead.
+          allowed='cmd/group/create.go|cmd/group/get.go|cmd/group/group.go|cmd/repo/reviewer-group/reviewer-group.go|cmd/validate/validate.go|internal/models/models.go'
+          unexpected=$(gofmt -l cmd internal utils main.go | grep -Ev "^(${allowed})$" || true)
+          if [ -n "$unexpected" ]; then
+            echo "The following files are not formatted with gofmt:"
+            echo "$unexpected"
+            exit 1
+          fi
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test with race detector
+        run: go test -race ./...

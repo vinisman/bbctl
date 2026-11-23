@@ -3,6 +3,7 @@ package repo
 import (
 	"github.com/spf13/cobra"
 	branchpermission "github.com/vinisman/bbctl/cmd/repo/branch-permission"
+	"github.com/vinisman/bbctl/cmd/repo/permission"
 	requiredbuild "github.com/vinisman/bbctl/cmd/repo/required-build"
 	reviewergroup "github.com/vinisman/bbctl/cmd/repo/reviewer-group"
 	"github.com/vinisman/bbctl/cmd/repo/webhook"
@@ -38,6 +39,9 @@ func NewRepoCmd() *cobra.Command {
 
 		// workzone
 		workzonecmd.RepoWorkzoneCmd(),
+
+		// repository permissions
+		permission.RepoPermissionCmd(),
 	)
 
 	return cmd

@@ -1,0 +1,9 @@
+projects:
+  - projectKey: DEMO
+    users:
+      - name: jdoe
+    groups:
+      - name: developers
+  - projectKey: OPS
+    groups:
+      - name: operators

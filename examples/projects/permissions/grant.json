@@ -1,0 +1,21 @@
+{
+  "projects": [
+    {
+      "projectKey": "DEMO",
+      "users": [
+        {"name": "jdoe", "permission": "PROJECT_READ"},
+        {"name": "asmith", "permission": "PROJECT_WRITE"}
+      ],
+      "groups": [
+        {"name": "developers", "permission": "PROJECT_WRITE"},
+        {"name": "project-admins", "permission": "PROJECT_ADMIN"}
+      ]
+    },
+    {
+      "projectKey": "OPS",
+      "groups": [
+        {"name": "operators", "permission": "PROJECT_READ"}
+      ]
+    }
+  ]
+}
