@@ -1088,31 +1088,53 @@ Validate any JSON or YAML file against a JSON Schema.
 Validate a YAML file against a schema:
 ```bash
 $ bbctl validate --schema schema.json --data data.yaml
-✓ Validation passed
+Validation passed
 ```
 
 Validate a JSON file:
 ```bash
 $ bbctl validate --schema schema.json --data data.json
-✓ Validation passed
+Validation passed
 ```
 
-### Verbose error output
+Exit code is `0` when the data is valid, `1` on validation failure or misuse.
 
+### Error output
+
+By default a short message goes to stderr:
+```bash
+$ bbctl validate --schema schema.json --data invalid.yaml
+Validation failed: root: required: missing properties: ["name"]
+```
+
+With `--verbose` the same message is followed by the technical details:
 ```bash
 $ bbctl validate --schema schema.json --data invalid.yaml --verbose
-Error: validation failed:
-Validation errors:
-validating root: validating /properties/email: pattern: "not-an-email" does not match pattern "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+Validation failed:
+
+  root: required: missing properties: ["name"]
+
+  Technical details:
+  validating root: required: missing properties: ["name"]
 ```
 
 ### JSON output
 
+`-o json` prints a machine-readable report. On failure the JSON goes to
+stdout (so it can be piped to `jq`) and the exit code is still `1`:
+
 ```bash
 $ bbctl validate --schema schema.json --data data.yaml -o json
 {
-  "valid": true,
-  "message": "Validation passed"
+  "message": "Validation passed",
+  "valid": true
+}
+
+$ bbctl validate --schema schema.json --data invalid.yaml -o json
+{
+  "error": "validating root: required: missing properties: [\"name\"]",
+  "message": "Validation failed",
+  "valid": false
 }
 ```
 
@@ -1127,6 +1149,14 @@ Read schema from stdin:
 ```bash
 $ cat schema.json | bbctl validate --schema - --data data.yaml
 ```
+
+Only one of `--schema` / `--data` can be `-`.
+
+### Notes
+
+- **`$ref`**: local file references are supported. Relative paths resolve against the schema file directory, or against the current working directory when the schema is read from stdin
+- **Input limits**: schema and data (including stdin) are limited to 100 MB each
+- **`-o` values**: `plain` (default) and `json`
 
 ### Example schema
 
