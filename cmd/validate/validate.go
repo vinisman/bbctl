@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"unicode"
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/spf13/cobra"
@@ -27,7 +28,12 @@ var (
 	flagOutput  string
 )
 
-var errFileTooLarge = errors.New("file exceeds maximum allowed size (100 MB)")
+// errFileTooLarge is returned when an input file or stdin exceeds maxFileSize.
+var errFileTooLarge = fmt.Errorf("file exceeds maximum allowed size (%d MB)", maxFileSize>>20)
+
+// errValidationFailed marks a validation failure that has already been reported
+// by formatError in the requested output format (exit code comes from main).
+var errValidationFailed = errors.New("validation failed")
 
 func NewValidateCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -42,7 +48,18 @@ Examples:
   bbctl validate --schema - --data data.json            # read schema from stdin
   bbctl validate --schema schema.json --data data.json --verbose
   bbctl validate --schema schema.json --data data.json -o json`,
-		RunE:         runValidate,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			err := runValidate(cmd, args)
+			// formatError has already printed the report in the requested
+			// format; suppress cobra's generic "Error:" line for this case
+			// only (flag/usage errors still print as before). The flag is set
+			// once, right before returning — safe: the command runs once per
+			// process.
+			if errors.Is(err, errValidationFailed) {
+				cmd.SilenceErrors = true
+			}
+			return err
+		},
 		SilenceUsage: true, // Don't show usage on validation error
 		// Local file validation doesn't need Bitbucket credentials (issue #89)
 		Annotations: map[string]string{"offline": "true"},
@@ -60,6 +77,13 @@ Examples:
 }
 
 func runValidate(cmd *cobra.Command, args []string) error {
+	if flagOutput != "" && flagOutput != "plain" && flagOutput != "json" {
+		return fmt.Errorf("invalid output format %q (allowed: plain, json)", flagOutput)
+	}
+	if flagSchema == "-" && flagData == "-" {
+		return fmt.Errorf("--schema and --data cannot both be read from stdin")
+	}
+
 	// Load schema
 	schemaData, err := readFile(flagSchema)
 	if err != nil {
@@ -72,10 +96,7 @@ func runValidate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to read data: %w", err)
 	}
 
-	// Check data size after reading (for stdin)
-	if len(dataData) > maxFileSize {
-		return errFileTooLarge
-	}
+	// Size limits for files and stdin are enforced by readFile.
 
 	// Parse schema (only JSON, since jsonschema.Schema requires JSON)
 	var schemaObj jsonschema.Schema
@@ -95,20 +116,29 @@ func runValidate(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Check: file must be a JSON Schema (have type or $schema)
-	if schemaObj.Type == "" && len(schemaObj.Types) == 0 && schemaObj.Schema == "" {
-		return fmt.Errorf("invalid schema: file does not look like a JSON Schema (missing 'type' or '$schema')")
+	// Raw in-memory view of the schema (YAML is a superset of JSON). Used for
+	// the "looks like a schema" check and for friendly error messages — no
+	// extra file reads on the error path.
+	var rawSchema map[string]any
+	if unmarshalErr := yaml.Unmarshal(schemaData, &rawSchema); unmarshalErr != nil {
+		return fmt.Errorf("invalid schema (JSON expected): %w", unmarshalErr)
+	}
+	if rawSchema == nil {
+		// Empty document or non-object root (e.g. "" or "null")
+		return fmt.Errorf("invalid schema: file does not look like a JSON Schema (missing JSON Schema keywords)")
+	}
+
+	// Check: the file must be a JSON Schema (contain schema keywords; an
+	// empty {} is a valid schema — "accept anything")
+	if !looksLikeSchema(rawSchema) {
+		return fmt.Errorf("invalid schema: file does not look like a JSON Schema (missing JSON Schema keywords)")
 	}
 
 	// Resolve schema references
 	// Create loader for local files
 	loader := func(uri *url.URL) (*jsonschema.Schema, error) {
-		// Get the file path from URI
-		path := uri.Path
-		if uri.Scheme == "file" {
-			// Handle file:// URIs (may have host on Windows)
-			path = uri.Path
-		}
+		// Get the file path from URI (handles file:///C:/..., drive letters, UNC)
+		path := fileURIToPath(uri)
 
 		// Resolve relative paths against the base schema directory
 		if !filepath.IsAbs(path) && flagSchema != "-" && flagSchema != "" {
@@ -116,7 +146,8 @@ func runValidate(cmd *cobra.Command, args []string) error {
 			path = filepath.Join(baseDir, path)
 		}
 
-		// Clean the path to prevent directory traversal
+		// Normalize the path. No sandbox: $ref may legitimately point
+		// outside the schema directory (e.g. ../shared/common.json).
 		path = filepath.Clean(path)
 
 		// Read and parse the schema file
@@ -133,13 +164,22 @@ func runValidate(cmd *cobra.Command, args []string) error {
 		return &schema, nil
 	}
 
-	// Determine base URI for the schema
+	// Determine base URI for the schema: the schema file itself, or the
+	// current directory when the schema comes from stdin — relative $ref
+	// must resolve against something deterministic (cwd), not "/" .
 	var baseURI string
 	if flagSchema != "-" && flagSchema != "" {
 		absPath, err := filepath.Abs(flagSchema)
-		if err == nil {
-			baseURI = "file://" + absPath
+		if err != nil {
+			return fmt.Errorf("cannot resolve schema path: %w", err)
 		}
+		baseURI = pathToFileURI(absPath)
+	} else {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return fmt.Errorf("cannot determine working directory: %w", err)
+		}
+		baseURI = dirToFileURI(cwd)
 	}
 
 	resolved, err := schemaObj.Resolve(&jsonschema.ResolveOptions{
@@ -155,10 +195,11 @@ func runValidate(cmd *cobra.Command, args []string) error {
 	if err := yaml.Unmarshal(dataData, &data); err != nil {
 		return fmt.Errorf("failed to parse data (YAML/JSON): %w", err)
 	}
+	dataMap, _ := data.(map[string]any)
 
 	// Validation
 	if err := resolved.Validate(data); err != nil {
-		return formatError(err, flagVerbose, flagOutput)
+		return formatError(err, flagVerbose, flagOutput, rawSchema, dataMap)
 	}
 
 	// Output result
@@ -167,8 +208,13 @@ func runValidate(cmd *cobra.Command, args []string) error {
 			"valid":   true,
 			"message": "Validation passed",
 		}
-		jsonData, _ := json.MarshalIndent(output, "", "  ")
-		fmt.Println(string(jsonData))
+		jsonData, marshalErr := json.MarshalIndent(output, "", "  ")
+		if marshalErr != nil {
+			// Static structure cannot fail; keep plain text as a fallback
+			fmt.Println("Validation passed")
+		} else {
+			fmt.Println(string(jsonData))
+		}
 	} else {
 		fmt.Println("Validation passed")
 	}
@@ -176,23 +222,25 @@ func runValidate(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func formatError(err error, verbose bool, output string) error {
+// formatError prints the validation failure in the requested output format and
+// returns errValidationFailed (the report is already printed, so the command
+// wrapper silences cobra's generic error line and main exits with code 1).
+func formatError(err error, verbose bool, output string, schema map[string]any, data map[string]any) error {
 	errStr := err.Error()
 
 	if output == "json" {
-		output := map[string]any{
+		payload := map[string]any{
 			"valid":   false,
 			"message": "Validation failed",
 			"error":   errStr,
 		}
-		jsonData, marshalErr := json.MarshalIndent(output, "", "  ")
+		jsonData, marshalErr := json.MarshalIndent(payload, "", "  ")
 		if marshalErr != nil {
 			fmt.Fprintf(os.Stderr, "validation failed: %s\n", errStr)
-			os.Exit(1)
+		} else {
+			fmt.Println(string(jsonData))
 		}
-		// Output JSON and exit
-		fmt.Println(string(jsonData))
-		os.Exit(1)
+		return errValidationFailed
 	}
 
 	// Format error for human-readable output
@@ -201,49 +249,37 @@ func formatError(err error, verbose bool, output string) error {
 		fmt.Fprintf(os.Stderr, "Validation failed:\n\n")
 
 		// Try to extract a user-friendly message
-		msg := formatErrorMessage(errStr)
+		msg := formatErrorMessage(errStr, schema, data)
 		fmt.Fprintf(os.Stderr, "  %s\n\n", msg)
 
 		// Add technical details
 		fmt.Fprintf(os.Stderr, "  Technical details:\n  %s\n", errStr)
 	} else {
 		// Brief output - extract only the essence
-		msg := formatErrorMessage(errStr)
+		msg := formatErrorMessage(errStr, schema, data)
 		fmt.Fprintf(os.Stderr, "Validation failed: %s\n", msg)
 	}
 
-	os.Exit(1)
-	return nil // Never reached
+	return errValidationFailed
 }
 
 // formatErrorMessage extracts a user-friendly error message
-func formatErrorMessage(errStr string) string {
-	// Split by "validating"
+func formatErrorMessage(errStr string, schema map[string]any, data map[string]any) string {
+	// Split by "validating" — the last part is the most specific error
 	parts := strings.Split(errStr, "validating ")
-	if len(parts) == 0 {
-		return errStr
-	}
-
-	// Take the last part (most specific error)
 	lastPart := parts[len(parts)-1]
 
 	// If it's a oneOf error - simplify
 	if strings.Contains(lastPart, "oneOf: did not validate") {
 		if idx := strings.Index(lastPart, ": oneOf"); idx >= 0 {
-			path := lastPart[:idx]
-			path = strings.TrimPrefix(path, "/properties/")
-			path = strings.TrimPrefix(path, "/definitions/")
-			path = strings.ReplaceAll(path, "/properties/", ".")
-			path = strings.ReplaceAll(path, "/definitions/", "")
+			path := cleanPath(lastPart[:idx])
 
-			// Try to extract allowed values from the error context
+			// Try to extract allowed values from the parsed schema.
 			// Error format: validating /definitions/Component/properties/type: oneOf: did not validate against 4 schemas
-			// We need to find information about expected values
-			// For this, we look for const value mentions in the original error
-			allowedValues := extractAllowedValues(errStr, path)
+			allowedValues := findAllowedValues(schema, path)
 			if len(allowedValues) > 0 {
 				// Try to find the current value from data
-				currentValue := extractCurrentValue(errStr, path)
+				currentValue := extractCurrentValue(data, path)
 				if currentValue != "" {
 					return fmt.Sprintf("%s: invalid value %q (allowed: %s)", path, currentValue, strings.Join(allowedValues, ", "))
 				}
@@ -262,10 +298,7 @@ func formatErrorMessage(errStr string) string {
 			if idx2 := strings.Index(valueAndExpected, " does not equal "); idx2 >= 0 {
 				value := valueAndExpected[:idx2]
 				expected := strings.TrimSpace(valueAndExpected[idx2+len(" does not equal "):])
-				path = strings.TrimPrefix(path, "/properties/")
-				path = strings.TrimPrefix(path, "/definitions/")
-				path = strings.ReplaceAll(path, "/properties/", ".")
-				path = strings.ReplaceAll(path, "/definitions/", "")
+				path = cleanPath(path)
 				path = strings.TrimSuffix(path, ":")
 				return fmt.Sprintf("%s: must be %q (got %q)", path, expected, value)
 			}
@@ -313,7 +346,7 @@ func formatErrorMessage(errStr string) string {
 			// Format: "value does not equal any of: [opt1 opt2 opt3]"
 			if idx2 := strings.Index(details, " does not equal any of: ["); idx2 >= 0 {
 				value := strings.TrimSpace(details[:idx2])
-				allowedStart := idx2 + 25 // length of " does not equal any of: ["
+				allowedStart := idx2 + len(" does not equal any of: [")
 				if idx3 := strings.Index(details[allowedStart:], "]"); idx3 >= 0 {
 					allowed := strings.TrimSpace(details[allowedStart : allowedStart+idx3])
 					// Split by spaces and filter empty strings
@@ -360,18 +393,74 @@ func cleanPath(path string) string {
 	return strings.TrimSpace(path)
 }
 
+func pathToFileURI(absPath string) string {
+	p := filepath.ToSlash(absPath)
+	// Windows drive path "C:/..." must become "/C:/..." so that the URI
+	// serializes as file:///C:/... (three slashes) instead of file://C:...
+	if !strings.HasPrefix(p, "/") {
+		p = "/" + p
+	}
+	return (&url.URL{Scheme: "file", Path: p}).String()
+}
+
+// dirToFileURI returns a file:// URI for a directory. The trailing slash makes
+// relative references resolve inside the directory (RFC 3986 §5.3), not next
+// to it.
+func dirToFileURI(dir string) string {
+	p := filepath.ToSlash(dir)
+	if !strings.HasSuffix(p, "/") {
+		p += "/"
+	}
+	if !strings.HasPrefix(p, "/") {
+		p = "/" + p
+	}
+	return (&url.URL{Scheme: "file", Path: p}).String()
+}
+
+// fileURIToPath converts a file:// URI to a local filesystem path.
+func fileURIToPath(u *url.URL) string {
+	if u.Scheme != "file" {
+		return filepath.FromSlash(u.Path)
+	}
+
+	path := u.Path
+	switch {
+	case len(u.Host) == 2 && u.Host[1] == ':' && isDriveLetter(u.Host[0]):
+		// Broken but common form file://C:/Users/... — "C:" is the host
+		path = u.Host + path
+	case u.Host != "" && u.Host != "localhost":
+		// UNC path: file://server/share → \\server\share
+		path = `\\` + u.Host + path
+	}
+
+	path = filepath.FromSlash(path)
+	// URL path of a Windows drive: /C:/Users/... → C:/Users/...
+	if len(path) >= 3 && (path[0] == '/' || path[0] == '\\') &&
+		path[2] == ':' && isDriveLetter(path[1]) {
+		path = path[1:]
+	}
+	return path
+}
+
+func isDriveLetter(c byte) bool {
+	return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
+}
+
 func readFile(path string) ([]byte, error) {
 	if path == "-" {
-		// Read from stdin with size limit
-		return io.ReadAll(io.LimitReader(os.Stdin, maxFileSize))
+		// Read from stdin with a size limit (limit+1 detects overflow)
+		return readAllLimit(os.Stdin, maxFileSize)
 	}
 
 	// Clean path for security
 	cleanPath := filepath.Clean(path)
 
-	// Check for absolute path with traversal
-	if strings.Contains(cleanPath, "..") {
-		return nil, fmt.Errorf("invalid path: %s", path)
+	// Reject traversal outside the working directory. ".." counts only as a
+	// full path segment, so names like "foo..bar.json" stay valid.
+	for _, segment := range strings.Split(cleanPath, string(filepath.Separator)) {
+		if segment == ".." {
+			return nil, fmt.Errorf("invalid path: %s", path)
+		}
 	}
 
 	// Check file size before reading
@@ -387,37 +476,68 @@ func readFile(path string) ([]byte, error) {
 	return os.ReadFile(cleanPath)
 }
 
-// extractAllowedValues extracts allowed values from the schema for the specified path
-func extractAllowedValues(errStr, path string) []string {
-	// Read the schema again to extract allowed values
-	schemaData, err := os.ReadFile(flagSchema)
+// readAllLimit reads at most limit bytes from r. Reading limit+1 bytes makes
+// overflow detectable: more data is rejected instead of being silently
+// truncated.
+func readAllLimit(r io.Reader, limit int64) ([]byte, error) {
+	data, err := io.ReadAll(io.LimitReader(r, limit+1))
 	if err != nil {
-		return nil
+		return nil, err
 	}
-
-	// Parse schema as YAML/JSON
-	var schema map[string]any
-	if err := yaml.Unmarshal(schemaData, &schema); err != nil {
-		return nil
+	if int64(len(data)) > limit {
+		return nil, errFileTooLarge
 	}
-
-	// Try to find the definition for the path
-	// For example, for path "component.type" look in #/definitions/Component/properties/type
-	allowedValues := findAllowedValues(schema, path)
-	return allowedValues
+	return data, nil
 }
 
-// extractCurrentValue extracts the current value from data for the specified path
-func extractCurrentValue(errStr, path string) string {
-	// Read data
-	dataData, err := os.ReadFile(flagData)
-	if err != nil {
-		return ""
-	}
+// schemaKeywords are the JSON Schema keywords used to recognize a file as a
+// schema (as opposed to data). Not exhaustive on purpose: any common keyword
+// is enough.
+var schemaKeywords = map[string]bool{
+	"$schema": true, "$ref": true, "$defs": true, "$id": true,
+	"definitions": true, "type": true, "types": true,
+	"properties": true, "patternProperties": true, "additionalProperties": true,
+	"propertyNames": true, "items": true, "prefixItems": true, "additionalItems": true,
+	"allOf": true, "anyOf": true, "oneOf": true, "not": true,
+	"if": true, "then": true, "else": true,
+	"enum": true, "const": true, "required": true,
+	"minimum": true, "maximum": true, "exclusiveMinimum": true, "exclusiveMaximum": true,
+	"multipleOf": true, "minLength": true, "maxLength": true, "pattern": true,
+	"format": true, "minItems": true, "maxItems": true, "uniqueItems": true,
+	"minProperties": true, "maxProperties": true, "dependentRequired": true,
+	"dependentSchemas": true, "contains": true, "minContains": true, "maxContains": true,
+	"unevaluatedProperties": true, "unevaluatedItems": true,
+}
 
-	// Parse data as YAML/JSON
-	var data map[string]any
-	if err := yaml.Unmarshal(dataData, &data); err != nil {
+// looksLikeSchema reports whether the parsed document contains at least one
+// JSON Schema keyword. An empty {} is a valid schema ("accept anything").
+func looksLikeSchema(schema map[string]any) bool {
+	if len(schema) == 0 {
+		return true
+	}
+	for key := range schema {
+		if schemaKeywords[key] {
+			return true
+		}
+	}
+	return false
+}
+
+// capitalizeFirst upper-cases the first rune of s (replacement for the
+// deprecated strings.Title, which upper-cases every word).
+func capitalizeFirst(s string) string {
+	if s == "" {
+		return s
+	}
+	runes := []rune(s)
+	runes[0] = unicode.ToUpper(runes[0])
+	return string(runes)
+}
+
+// extractCurrentValue extracts the current value from the parsed data for the
+// specified path. Works in memory: no file I/O on the error path.
+func extractCurrentValue(data map[string]any, path string) string {
+	if data == nil {
 		return ""
 	}
 
@@ -512,12 +632,12 @@ func findValueInData(data map[string]any, path string) any {
 func findAllowedValues(schema map[string]any, path string) []string {
 	// Split path into parts: "component.type" -> ["component", "type"]
 	parts := strings.Split(path, ".")
-	if len(parts) == 0 {
-		return nil
-	}
 
-	// Start from root definitions
+	// Root definitions: "definitions" (draft-07) or "$defs" (2019-09+)
 	definitions, ok := schema["definitions"].(map[string]any)
+	if !ok {
+		definitions, ok = schema["$defs"].(map[string]any)
+	}
 	if !ok {
 		return nil
 	}
@@ -573,10 +693,8 @@ func findInDefinitions(definitions map[string]any, path []string) any {
 	// Get definition name
 	defName, ok := typeMapping[strings.ToLower(path[0])]
 	if !ok {
-		// Try to find directly
-		defName = path[0]
-		// Try to capitalize
-		defName = strings.Title(defName)
+		// Try to find directly with the first letter capitalized
+		defName = capitalizeFirst(path[0])
 	}
 
 	def, ok := definitions[defName].(map[string]any)
