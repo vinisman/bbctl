@@ -1157,6 +1157,7 @@ Only one of `--schema` / `--data` can be `-`.
 - **`$ref`**: local file references are supported. Relative paths resolve against the schema file directory, or against the current working directory when the schema is read from stdin
 - **Input limits**: schema and data (including stdin) are limited to 100 MB each
 - **`-o` values**: `plain` (default) and `json`
+- **Windows paths**: `C:/Users/...` and `C:\Users\...` both work. In Git Bash/MSYS always quote backslash paths (`--schema 'C:\Users\...'`) — otherwise the shell strips the backslashes before the program sees them
 
 ### Example schema
 
